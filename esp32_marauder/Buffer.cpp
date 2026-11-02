@@ -1,6 +1,8 @@
+#include "HostConnection.h"
 #include "Buffer.h"
 #include "PcapHeader.h"
 #include "lang_var.h"
+#include "StorageBackend.h"
 
 Buffer::Buffer(){
   bufA = (uint8_t*)malloc(BUF_SIZE);
@@ -29,7 +31,7 @@ void Buffer::createFile(const char* name, bool is_pcap, bool is_gpx){
     } while(fs->exists(fileName));
   }
 
-  Serial.println(fileName);
+  host_connection::console().println(fileName);
   
   file = fs->open(fileName, FILE_WRITE);
   file.close();
@@ -58,7 +60,14 @@ void Buffer::setDirectory(const char* path) {
   directory = path;
 }
 
+// Session-only suppression: never change persistent SavePCAP configuration.
+void Buffer::suppressLocalPcap(){
+  pcapSuppressed=true;
+  if(pcapFile){writing=false;bufSizeA=bufSizeB=0;file.close();this->fs=nullptr;this->serial=false;}
+}
 void Buffer::openFile(const char* file_name, fs::FS* fs, bool serial, bool is_pcap, bool is_gpx) {
+  pcapFile=is_pcap;pcapSuppressed=false;
+  if(is_pcap && hostOnlyOpen){suppressLocalPcap();return;}
   bool save_pcap = settings_obj.loadSetting<bool>("SavePCAP");
   if (!save_pcap) {
     this->fs = NULL;
@@ -91,19 +100,20 @@ void Buffer::gpxOpen(const char* file_name, fs::FS* fs, bool serial) {
 }
 
 void Buffer::add(const uint8_t* buf, uint32_t len, bool is_pcap){
+  if((is_pcap&&pcapSuppressed)||host_connection::capturing())return;
   // buffer is full -> drop packet
   if((useA && bufSizeA + len >= BUF_SIZE && bufSizeB > 0) || (!useA && bufSizeB + len >= BUF_SIZE && bufSizeA > 0)){
-    //Serial.print(";"); 
+    //host_connection::console().print(";");
     return;
   }
   
   if(useA && bufSizeA + len + 16 >= BUF_SIZE && bufSizeB == 0){
     useA = false;
-    //Serial.println("\nswitched to buffer B");
+    //host_connection::console().println("\nswitched to buffer B");
   }
   else if(!useA && bufSizeB + len + 16 >= BUF_SIZE && bufSizeA == 0){
     useA = true;
-    //Serial.println("\nswitched to buffer A");
+    //host_connection::console().println("\nswitched to buffer A");
   }
 
   uint32_t microSeconds = micros(); // e.g. 45200400 => 45s 200ms 400us
@@ -122,6 +132,11 @@ void Buffer::add(const uint8_t* buf, uint32_t len, bool is_pcap){
 }
 
 void Buffer::append(wifi_promiscuous_pkt_t *packet, int len) {
+#ifdef HOST_CONNECTION_ENABLED
+  // Native sniff predicates have accepted this frame. Stream before SavePCAP
+  // settings or storage batching; the RX callback itself never calls this path.
+  host_connection::captureAccepted(packet);
+#endif
   bool save_packet = settings_obj.loadSetting<bool>(text_table4[7]);
   if (save_packet) {
     add(packet->payload, len, true);
@@ -174,32 +189,43 @@ void Buffer::write(const uint8_t* buf, uint32_t len){
 }
 
 void Buffer::saveFs(){
+  if (!storageHasSpace(bufSizeA + bufSizeB)) {
+    host_connection::console().println("[Storage] Full; capture file output stopped, CLI remains available");
+    this->fs = nullptr;
+    return;
+  }
   file = fs->open(fileName, FILE_APPEND);
   if (!file) {
-    Serial.println(text02+fileName+"'");
+    host_connection::console().println(text02+fileName+"'");
+    this->fs = nullptr;
     return;
   }
 
+  bool ok = true;
   if(useA){
     if(bufSizeB > 0){
-      file.write(bufB, bufSizeB);
+      ok = ok && file.write(bufB, bufSizeB) == bufSizeB;
     }
     if(bufSizeA > 0){
-      file.write(bufA, bufSizeA);
+      ok = ok && file.write(bufA, bufSizeA) == bufSizeA;
     }
   } else {
     if(bufSizeA > 0){
-      file.write(bufA, bufSizeA);
+      ok = ok && file.write(bufA, bufSizeA) == bufSizeA;
     }
     if(bufSizeB > 0){
-      file.write(bufB, bufSizeB);
+      ok = ok && file.write(bufB, bufSizeB) == bufSizeB;
     }
   }
 
   file.close();
+  if (!ok) { host_connection::console().println("[Storage] Short write; capture file output stopped"); this->fs = nullptr; }
 }
 
 void Buffer::saveSerial() {
+  // Host_Connection raw capture has its own binary channel and fixed pool.
+  // Never tunnel legacy PCAP marker/data bytes through the framed text console.
+  if(host_connection::active())return;
   // Saves to main console UART, user-facing app will ignore these markers
   // Uses / and ] in markers as they are illegal characters for SSIDs
   const char* mark_begin = "[BUF/BEGIN]";
@@ -207,7 +233,7 @@ void Buffer::saveSerial() {
   const char* mark_close = "[BUF/CLOSE]";
   const size_t mark_close_len = strlen(mark_close);
 
-  // Additional buffer and memcpy's so that a single Serial.write() is called
+  // Additional buffer and memcpy's so that a single host_connection::console().write() is called
   // This is necessary so that other console output isn't mixed into buffer stream
   uint8_t* buf = (uint8_t*)malloc(mark_begin_len + bufSizeA + bufSizeB + mark_close_len);
   uint8_t* it = buf;
@@ -236,11 +262,17 @@ void Buffer::saveSerial() {
 
   memcpy(it, mark_close, mark_close_len);
   it += mark_close_len;
-  Serial.write(buf, it - buf);
+  host_connection::console().write(buf, it - buf);
   free(buf);
 }
 
-void Buffer::save() {
+void Buffer::save(bool force) {
+  if((pcapFile&&pcapSuppressed)||host_connection::capturing())return;
+  #ifdef MARAUDER_INTERNAL_STORAGE
+    // Batch small writes; no change to the USB transport or SD-card profiles.
+    if (!force && millis() - lastSaveMs < 100 && bufSizeA + bufSizeB < BUF_SIZE / 2) return;
+    lastSaveMs = millis();
+  #endif
   saving = true;
 
   if((bufSizeA + bufSizeB) == 0){

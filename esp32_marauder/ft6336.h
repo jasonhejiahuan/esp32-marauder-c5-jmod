@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #pragma once
 #ifndef ft6336_h
 #define ft6336_h
@@ -35,7 +36,7 @@ static void ft6336_init() {
         Wire.requestFrom((int)FT6336_ADDR, 1);
         if (Wire.available()) chipId = Wire.read();
     }
-    Serial.printf("[Touch] FT6336U ID: 0x%02X%s\n",
+    host_connection::console().printf("[Touch] FT6336U ID: 0x%02X%s\n",
                   chipId, chipId == 0x64 ? " (OK)" : " (unexpected)");
 
     // Raise touch threshold to reduce phantom touches.

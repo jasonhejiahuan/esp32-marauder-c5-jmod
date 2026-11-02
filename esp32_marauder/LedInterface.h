@@ -6,6 +6,7 @@
 #include "configs.h"
 #include "settings.h"
 #include <Arduino.h>
+#include "HostConnectionFeedback.h"
 #ifdef HAS_NEOPIXEL_LED
   #ifdef MARAUDER_POOM
     #include "PoomWs2812.h"
@@ -50,6 +51,9 @@ class LedInterface {
     uint32_t Wheel(byte WheelPos);
 
     uint8_t current_mode = MODE_OFF;
+    host_connection::FeedbackFlash hostConnectionFlash;
+    uint8_t hostConnectionBrightness=0;
+    void cancelHostConnectionFeedback();
 
     void rainbow();
     void ledOff();
@@ -73,6 +77,7 @@ class LedInterface {
     void setMode(uint8_t);
     void setColor(int r, int g, int b);
     uint8_t getMode();
+    void hostConnectionFeedback();
     
   
 };

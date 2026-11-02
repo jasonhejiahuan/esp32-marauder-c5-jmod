@@ -19,15 +19,18 @@ extern Settings settings_obj;
 class Buffer {
   public:
     Buffer();
+    void suppressLocalPcap();
+    void prepareHostOnly(bool enabled){hostOnlyOpen=enabled;}
     void pcapOpen(const char* file_name, fs::FS* fs, bool serial);
     void logOpen(const char* file_name, fs::FS* fs, bool serial);
     void gpxOpen(const char* file_name, fs::FS* fs, bool serial);
     void append(wifi_promiscuous_pkt_t *packet, int len);
     void append(String log);
-    void save();
+    void save(bool force = false);
     String getFileName();
     void setDirectory(const char* path);
   private:
+    bool hostOnlyOpen=false;
     void createFile(const char* name, bool is_pcap, bool is_gpx = false);
     void open(bool is_pcap);
     void openFile(const char* file_name, fs::FS* fs, bool serial, bool is_pcap, bool is_gpx = false);
@@ -45,6 +48,7 @@ class Buffer {
     uint32_t bufSizeA = 0;
     uint32_t bufSizeB = 0;
 
+    uint32_t lastSaveMs = 0;
     bool writing = false; // acceppting writes to buffer
     bool useA = true; // writing to bufA or bufB
     bool saving = false; // currently saving onto the SD card
@@ -54,6 +58,8 @@ class Buffer {
     File file;
     fs::FS* fs;
     bool serial;
+    bool pcapSuppressed = false;
+    bool pcapFile = false;
 };
 
 #endif

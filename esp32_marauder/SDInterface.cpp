@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "SDInterface.h"
 #include "lang_var.h"
 
@@ -124,6 +125,16 @@ namespace {
 #endif
 
 bool SDInterface::initSD() {
+  #ifdef MARAUDER_INTERNAL_STORAGE
+    this->supported = mountInternalStorage();
+    if (!this->supported) return false;
+    this->cardType = CARD_NONE; // Internal filesystem, no SD card present.
+    this->cardSizeMB = 0;
+    this->card_sz = "Internal";
+    this->sd_files = new LinkedList<String>();
+    if (!storageFS().exists("/SCRIPTS")) storageFS().mkdir("/SCRIPTS");
+    return true;
+  #else
   #ifdef HAS_SD
     String display_string = "";
 
@@ -160,7 +171,7 @@ bool SDInterface::initSD() {
       #else
         this->spiExt = new SPIClass(FSPI);
       #endif
-      Serial.println(F("Using external SPI configuration..."));
+      host_connection::console().println(F("Using external SPI configuration..."));
       this->spiExt->begin(SPI_SCK, SPI_MISO, SPI_MOSI, SD_CS);
       if (!SD.begin(SD_CS, *(this->spiExt))) {
     #elif defined(HAS_C5_SD)
@@ -168,7 +179,7 @@ bool SDInterface::initSD() {
     #else
       if (!SD.begin(SD_CS)) {
     #endif
-      Serial.println(F("Failed to mount SD Card"));
+      host_connection::console().println(F("Failed to mount SD Card"));
       this->supported = false;
       return false;
     }
@@ -193,9 +204,9 @@ bool SDInterface::initSD() {
         this->card_sz = sz;
       }
 
-      if (!SD.exists("/SCRIPTS")) {
+      if (!storageFS().exists("/SCRIPTS")) {
 
-        SD.mkdir("/SCRIPTS");
+        storageFS().mkdir("/SCRIPTS");
       }
 
       this->sd_files = new LinkedList<String>();
@@ -206,19 +217,21 @@ bool SDInterface::initSD() {
   #else
     return false;
   #endif
+  #endif
 }
 
 File SDInterface::getFile(String path) {
   if (this->supported) {
-    File file = SD.open(path, FILE_READ);
+    File file = storageFS().open(path, FILE_READ);
 
     //if (file)
     return file;
   }
+  return File();
 }
 
 bool SDInterface::removeFile(String file_path) {
-  if (SD.remove(file_path))
+  if (storageFS().remove(file_path))
     return true;
   else
     return false;
@@ -234,7 +247,7 @@ bool SDInterface::migrateSPIFFS(uint8_t operation, size_t& files_copied, size_t&
   }
 
   const String backup_path = "/spiffs";
-  File backup = SD.open(backup_path);
+  File backup = storageFS().open(backup_path);
   bool valid_backup = backup && backup.isDirectory();
   backup.close();
 
@@ -243,7 +256,7 @@ bool SDInterface::migrateSPIFFS(uint8_t operation, size_t& files_copied, size_t&
       error = 2;
       return false;
     }
-    return copyTree(SD, backup_path, nullptr, "", files_copied, bytes_copied, error);
+    return copyTree(storageFS(), backup_path, nullptr, "", files_copied, bytes_copied, error);
   }
 
   if (operation == 2) {
@@ -252,27 +265,27 @@ bool SDInterface::migrateSPIFFS(uint8_t operation, size_t& files_copied, size_t&
       return false;
     }
     const String rollback_path = "/spiffs.restore-rollback";
-    if (!removeTree(SD, rollback_path)) {
+    if (!removeTree(storageFS(), rollback_path)) {
       error = 3;
       return false;
     }
     size_t rollback_files = 0, rollback_bytes = 0;
     uint8_t rollback_error = 0;
-    if (!copyTree(SPIFFS, "/", &SD, rollback_path, rollback_files, rollback_bytes, rollback_error)) {
-      removeTree(SD, rollback_path);
+    if (!copyTree(SPIFFS, "/", &storageFS(), rollback_path, rollback_files, rollback_bytes, rollback_error)) {
+      removeTree(storageFS(), rollback_path);
       error = 3;
       return false;
     }
     bool cleared = removeTree(SPIFFS, "/", true);
-    if (cleared && copyTree(SD, backup_path, &SPIFFS, "/", files_copied, bytes_copied, error)) {
-      removeTree(SD, rollback_path);
+    if (cleared && copyTree(storageFS(), backup_path, &SPIFFS, "/", files_copied, bytes_copied, error)) {
+      removeTree(storageFS(), rollback_path);
       return true;
     }
     removeTree(SPIFFS, "/", true);
     size_t recovered_files = 0, recovered_bytes = 0;
     uint8_t recovery_error = 0;
-    copyTree(SD, rollback_path, &SPIFFS, "/", recovered_files, recovered_bytes, recovery_error);
-    removeTree(SD, rollback_path);
+    copyTree(storageFS(), rollback_path, &SPIFFS, "/", recovered_files, recovered_bytes, recovery_error);
+    removeTree(storageFS(), rollback_path);
     error = 3;
     return false;
   }
@@ -280,37 +293,37 @@ bool SDInterface::migrateSPIFFS(uint8_t operation, size_t& files_copied, size_t&
   const String staging_path = "/spiffs.tmp";
   const String previous_path = "/spiffs.previous";
 
-  if (!removeTree(SD, staging_path) || !removeTree(SD, previous_path)) {
+  if (!removeTree(storageFS(), staging_path) || !removeTree(storageFS(), previous_path)) {
     error = 3;
     return false;
   }
 
-  if (!copyTree(SPIFFS, "/", &SD, staging_path, files_copied, bytes_copied, error)) {
-    removeTree(SD, staging_path);
+  if (!copyTree(SPIFFS, "/", &storageFS(), staging_path, files_copied, bytes_copied, error)) {
+    removeTree(storageFS(), staging_path);
     return false;
   }
 
-  if (SD.exists(backup_path) && !SD.rename(backup_path, previous_path)) {
-    removeTree(SD, staging_path);
+  if (storageFS().exists(backup_path) && !storageFS().rename(backup_path, previous_path)) {
+    removeTree(storageFS(), staging_path);
     error = 3;
     return false;
   }
 
-  if (!SD.rename(staging_path, backup_path)) {
-    if (SD.exists(previous_path))
-      SD.rename(previous_path, backup_path);
+  if (!storageFS().rename(staging_path, backup_path)) {
+    if (storageFS().exists(previous_path))
+      storageFS().rename(previous_path, backup_path);
     error = 3;
     return false;
   }
 
-  removeTree(SD, previous_path);
+  removeTree(storageFS(), previous_path);
   return true;
 }
 // GCOVR_EXCL_STOP
 
 void SDInterface::listDirToLinkedList(LinkedList<String>* file_names, String str_dir, String ext) {
   if (this->supported) {
-    File dir = SD.open(str_dir);
+    File dir = storageFS().open(str_dir);
     while (true)
     {
       File entry = dir.openNextFile();
@@ -338,7 +351,7 @@ bool SDInterface::listDirectory(String path, LinkedList<SDDirectoryEntry>* entri
   if (!this->supported || entries == nullptr)
     return false;
 
-  File dir = SD.open(path);
+  File dir = storageFS().open(path);
   if (!dir || !dir.isDirectory()) {
     dir.close();
     return false;
@@ -363,7 +376,9 @@ bool SDInterface::listDirectory(String path, LinkedList<SDDirectoryEntry>* entri
 
 void SDInterface::listDir(String str_dir){
   if (this->supported) {
-    File dir = SD.open(str_dir);
+    File dir = storageFS().open(str_dir);
+    if(!dir||!dir.isDirectory()){host_connection::console().println("Directory not found. Use ls / or storageinfo to check the mounted backend.");return;}
+    size_t listed=0;
     while (true)
     {
       File entry = dir.openNextFile();
@@ -373,14 +388,16 @@ void SDInterface::listDir(String str_dir){
       }
       //for (uint8_t i = 0; i < numTabs; i++)
       //{
-      //  Serial.print('\t');
+      //  host_connection::console().print('\t');
       //}
-      Serial.print(entry.name());
-      Serial.print("\t");
-      Serial.println(entry.size());
+      ++listed;
+      host_connection::console().print(entry.name());
+      host_connection::console().print("\t");
+      host_connection::console().println(entry.size());
       entry.close();
     }
-  }
+    host_connection::console().printf("%u entries\n",(unsigned)listed);
+  }else host_connection::console().println("Storage not mounted. Run storageinfo; check free space and reboot if mounting failed.");
 }
 
 void SDInterface::runUpdate(String file_name) {
@@ -397,7 +414,7 @@ void SDInterface::runUpdate(String file_name) {
     display_obj.tft.println("Opening " + file_name + "...");
   #endif
 
-  File updateBin = SD.open(file_name);
+  File updateBin = storageFS().open(file_name);
 
   if (updateBin) {
     if(updateBin.isDirectory()){
@@ -405,9 +422,9 @@ void SDInterface::runUpdate(String file_name) {
         display_obj.tft.setTextColor(TFT_RED);
         display_obj.tft.println(F(text_table2[0]));
       #endif
-      Serial.print(F("Error, could not find \""));
-      Serial.print(file_name);
-      Serial.println(F("\""));
+      host_connection::console().print(F("Error, could not find \""));
+      host_connection::console().print(file_name);
+      host_connection::console().println(F("\""));
       #ifdef HAS_SCREEN
         display_obj.tft.setTextColor(TFT_WHITE);
       #endif
@@ -425,7 +442,7 @@ void SDInterface::runUpdate(String file_name) {
       #ifdef HAS_SCREEN
         display_obj.tft.println(F(text_table2[1]));
       #endif
-      Serial.println(F("Starting update over SD. Please wait..."));
+      host_connection::console().println(F("Starting update from storage. Please wait..."));
       if (!this->performUpdate(updateBin, updateSize)) {
         updateBin.close();
         return;
@@ -436,7 +453,7 @@ void SDInterface::runUpdate(String file_name) {
         display_obj.tft.setTextColor(TFT_RED);
         display_obj.tft.println(F(text_table2[2]));
       #endif
-      Serial.println(F("Error, file is empty"));
+      host_connection::console().println(F("Error, file is empty"));
       #ifdef HAS_SCREEN
         display_obj.tft.setTextColor(TFT_WHITE);
       #endif
@@ -457,7 +474,7 @@ void SDInterface::runUpdate(String file_name) {
         display_obj.tft.println(F("Could not select updated firmware"));
         display_obj.tft.setTextColor(TFT_WHITE);
       #endif
-      Serial.println(F("Update verified but boot partition selection failed"));
+      host_connection::console().println(F("Update verified but boot partition selection failed"));
       return;
     }
      
@@ -468,7 +485,7 @@ void SDInterface::runUpdate(String file_name) {
       display_obj.tft.setTextColor(TFT_RED);
       display_obj.tft.println(F(text_table2[4]));
     #endif
-    Serial.println(F("Could not load update.bin from sd root"));
+    host_connection::console().println(F("Could not open /update.bin on application storage. Run storageinfo and ls /; provide a compatible verified update image or use Dashboard USB OTA."));
     #ifdef HAS_SCREEN
       display_obj.tft.setTextColor(TFT_WHITE);
     #endif
@@ -490,7 +507,7 @@ bool SDInterface::validateUpdate(File &updateBin) {
 
   #ifdef ALLOW_UNVERIFIED_SD_UPDATE
     if (!scanner.found()) {
-      Serial.println(F("WARNING: firmware identity missing; developer override accepted update"));
+      host_connection::console().println(F("WARNING: firmware identity missing; developer override accepted update"));
       return true;
     }
   #endif
@@ -501,7 +518,7 @@ bool SDInterface::validateUpdate(File &updateBin) {
       display_obj.tft.println(F("Rejected: not a validated Marauder image"));
       display_obj.tft.setTextColor(TFT_WHITE);
     #endif
-    Serial.println(F("Rejected SD update: Marauder firmware identity not found"));
+    host_connection::console().println(F("Rejected storage update: Marauder firmware identity not found"));
     return false;
   }
 
@@ -509,7 +526,7 @@ bool SDInterface::validateUpdate(File &updateBin) {
   const MarauderFirmware::Metadata &current = MarauderFirmware::currentMetadata();
   if (!MarauderFirmware::metadataMatches(candidate, current)) {
     #ifdef ALLOW_UNVERIFIED_SD_UPDATE
-      Serial.println(F("WARNING: firmware identity mismatch; developer override accepted update"));
+      host_connection::console().println(F("WARNING: firmware identity mismatch; developer override accepted update"));
       return true;
     #else
       #ifdef HAS_SCREEN
@@ -517,22 +534,22 @@ bool SDInterface::validateUpdate(File &updateBin) {
         display_obj.tft.println(F("Rejected: firmware is for another device"));
         display_obj.tft.setTextColor(TFT_WHITE);
       #endif
-      Serial.print(F("Rejected SD update: expected "));
-      Serial.print(current.hardware);
-      Serial.print(F("/"));
-      Serial.print(current.chip);
-      Serial.print(F(", got "));
-      Serial.print(candidate.hardware);
-      Serial.print(F("/"));
-      Serial.println(candidate.chip);
+      host_connection::console().print(F("Rejected storage update: expected "));
+      host_connection::console().print(current.hardware);
+      host_connection::console().print(F("/"));
+      host_connection::console().print(current.chip);
+      host_connection::console().print(F(", got "));
+      host_connection::console().print(candidate.hardware);
+      host_connection::console().print(F("/"));
+      host_connection::console().println(candidate.chip);
       return false;
     #endif
   }
 
-  Serial.print(F("Validated SD update for "));
-  Serial.print(candidate.hardware);
-  Serial.print(F("/"));
-  Serial.println(candidate.chip);
+  host_connection::console().print(F("Validated storage update for "));
+  host_connection::console().print(candidate.hardware);
+  host_connection::console().print(F("/"));
+  host_connection::console().println(candidate.chip);
   return true;
 }
 
@@ -547,19 +564,19 @@ bool SDInterface::performUpdate(Stream &updateSource, size_t updateSize) {
       #ifdef HAS_SCREEN
         display_obj.tft.println(text_table2[7] + String(written) + text_table2[10]);
       #endif
-      Serial.print(F("Written : "));
-      Serial.print(written);
-      Serial.println(F(" successfully"));
+      host_connection::console().print(F("Written : "));
+      host_connection::console().print(written);
+      host_connection::console().println(F(" successfully"));
     }
     else {
       #ifdef HAS_SCREEN
         display_obj.tft.println(text_table2[8] + String(written) + "/" + String(updateSize) + text_table2[9]);
       #endif
-      Serial.print(F("Written only : "));
-      Serial.print(written);
-      Serial.print(F("/"));
-      Serial.print(updateSize);
-      Serial.println(F(". Retry?"));
+      host_connection::console().print(F("Written only : "));
+      host_connection::console().print(written);
+      host_connection::console().print(F("/"));
+      host_connection::console().print(updateSize);
+      host_connection::console().println(F(". Retry?"));
       Update.abort();
       return false;
     }
@@ -572,7 +589,7 @@ bool SDInterface::performUpdate(Stream &updateSource, size_t updateSize) {
           display_obj.tft.setTextColor(TFT_RED);
           display_obj.tft.println(text_table2[12]);
         #endif
-        Serial.println(F("Update not finished? Something went wrong!"));
+        host_connection::console().println(F("Update not finished? Something went wrong!"));
         #ifdef HAS_SCREEN
           display_obj.tft.setTextColor(TFT_WHITE);
         #endif
@@ -583,8 +600,8 @@ bool SDInterface::performUpdate(Stream &updateSource, size_t updateSize) {
       #ifdef HAS_SCREEN
         display_obj.tft.println(text_table2[13] + String(Update.getError()));
       #endif
-      Serial.print(F("Error Occurred. Error #: "));
-      Serial.println(Update.getError());
+      host_connection::console().print(F("Error Occurred. Error #: "));
+      host_connection::console().println(Update.getError());
       return false;
     }
 
@@ -594,7 +611,7 @@ bool SDInterface::performUpdate(Stream &updateSource, size_t updateSize) {
     #ifdef HAS_SCREEN
       display_obj.tft.println(text_table2[14]);
     #endif
-    Serial.println(F("Not enough space to begin OTA"));
+    host_connection::console().println(F("Not enough space to begin OTA"));
     return false;
   }
 }

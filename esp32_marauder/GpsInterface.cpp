@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "GpsInterface.h"
 
 #ifdef HAS_GPS
@@ -22,7 +23,7 @@ void GpsInterface::begin() {
   uint32_t gps_baud = this->initGpsBaudAndForce115200();
 
   if ((gps_baud != 9600) && (gps_baud != 38400) && (gps_baud != 115200))
-    Serial.println(F("Could not detect GPS baudrate"));
+    host_connection::console().println(F("Could not detect GPS baudrate"));
 
   delay(1000);
 
@@ -38,14 +39,14 @@ void GpsInterface::begin() {
     while (Serial2.available()) {
       //Fetch the character one by one
       char c = Serial2.read();
-      //Serial.print(c);
+      //host_connection::console().print(c);
       //Pass the character to the library
       nmea.process(c);
     }
   }
   else {
     this->gps_enabled = false;
-    Serial.println(F("GPS Not Found"));
+    host_connection::console().println(F("GPS Not Found"));
   }
   
 
@@ -754,7 +755,7 @@ void GpsInterface::main() {
   while (Serial2.available()) {
     //Fetch the character one by one
     char c = Serial2.read();
-    //Serial.print(c);
+    //host_connection::console().print(c);
     //Pass the character to the library
     nmea.process(c);
   }

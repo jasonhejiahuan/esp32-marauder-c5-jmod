@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "settings.h"
 
 static JsonObject findSavedWifiSetting(DynamicJsonDocument& json) {
@@ -69,7 +70,7 @@ void Settings::_buildCache() {
   DynamicJsonDocument json(JSON_SETTING_SIZE);
 
   if (deserializeJson(json, this->json_settings_string)) {
-    Serial.println(F("_buildCache: could not parse json"));
+    host_connection::console().println(F("_buildCache: could not parse json"));
     return;
   }
 
@@ -105,10 +106,37 @@ void Settings::_buildCache() {
 
 String Settings::getSettingsString() { return this->json_settings_string; }
 
+#if defined(MARAUDER_XIAO_C5) && defined(MARAUDER_INTERNAL_STORAGE)
+#include <esp_partition.h>
+static bool initializeBlankXiaoSettings() {
+  const auto* part = esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, "spiffs");
+  if (!part || part->address != MARAUDER_SETTINGS_OFFSET || part->size != MARAUDER_SETTINGS_SIZE) return false;
+  uint8_t block[1024];
+  for (size_t offset = 0; offset < part->size; offset += sizeof(block)) {
+    if (esp_partition_read(part, offset, block, sizeof(block)) != ESP_OK) return false;
+    for (uint8_t byte : block) if (byte != 0xff) return false;
+    yield();
+  }
+  return SPIFFS.format();
+}
+#endif
+
 bool Settings::begin() {
+  #if defined(MARAUDER_XIAO_C5) && defined(MARAUDER_INTERNAL_STORAGE)
+  // Only a positively verified blank settings partition may be formatted.
+  if (!SPIFFS.begin(false)) {
+    if (!initializeBlankXiaoSettings() || !SPIFFS.begin(false)) return false;
+  }
+  #else
+  #if defined(MARAUDER_C5) && (defined(MARAUDER_WAVESHARE_C5_RGB) || defined(MARAUDER_XIAO_C5)) && defined(MARAUDER_INTERNAL_STORAGE)
+  // Configuration is migrated explicitly; a mount failure must never erase it.
+  if (!SPIFFS.begin(false)) {
+  #else
   if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+  #endif
     return false;
   }
+  #endif
 
   File settingsFile;
 
@@ -135,7 +163,7 @@ bool Settings::begin() {
   DynamicJsonDocument jsonBuffer(JSON_SETTING_SIZE);
   DeserializationError error = deserializeJson(jsonBuffer, settingsFile);
   if (error)
-    Serial.println(error.f_str());
+    host_connection::console().println(error.f_str());
 
   settingsFile.close();
 
@@ -238,9 +266,9 @@ template <> String Settings::loadSetting<String>(const char* key) {
       return json["Settings"][i]["value"].as<String>();
   }
 
-  // Serial.print("Did not find setting named ");
-  // Serial.print(key);
-  // Serial.println(". Creating...");
+  // host_connection::console().print("Did not find setting named ");
+  // host_connection::console().print(key);
+  // host_connection::console().println(". Creating...");
 
   if (this->createDefaultSettings(
           SPIFFS,
@@ -280,9 +308,9 @@ template <> bool Settings::loadSetting<bool>(const char* key) {
     }
   }
 
-  // Serial.print("Did not find setting named ");
-  // Serial.print(key);
-  // Serial.println(". Creating...");
+  // host_connection::console().print("Did not find setting named ");
+  // host_connection::console().print(key);
+  // host_connection::console().println(". Creating...");
 
   if (this->createDefaultSettings(SPIFFS, true, json["Settings"].size(), "bool", key))
     return true;
@@ -443,11 +471,11 @@ bool Settings::toggleSetting(const char* key) {
   bool current = this->loadSetting<bool>(key);
   if (current) {
     saveSetting<bool>(key, false);
-    //Serial.println("Setting value to false");
+    //host_connection::console().println("Setting value to false");
     return false;
   } else {
     saveSetting<bool>(key, true);
-    //Serial.println("Setting value to true");
+    //host_connection::console().println("Setting value to true");
     return true;
   }
 }
@@ -500,15 +528,15 @@ void Settings::printJsonSettings(String json_string) {
 
   deserializeJson(json, json_string);
 
-  Serial.println("Settings\n----------------------------------------------");
+  host_connection::console().println("Settings\n----------------------------------------------");
   for (int i = 0; i < (int)json["Settings"].size(); i++) {
     String setting_name = json["Settings"][i]["name"].as<String>();
-    Serial.println("Name: " + setting_name);
-    Serial.println("Type: " + json["Settings"][i]["type"].as<String>());
+    host_connection::console().println("Name: " + setting_name);
+    host_connection::console().println("Type: " + json["Settings"][i]["type"].as<String>());
     if (setting_name == "ClientPW" || setting_name == SAVED_WIFI_KEY_NAME)
-      Serial.println(F("Value: [redacted]\n"));
+      host_connection::console().println(F("Value: [redacted]\n"));
     else
-      Serial.println("Value: " + json["Settings"][i]["value"].as<String>() + "\n");
+      host_connection::console().println("Value: " + json["Settings"][i]["value"].as<String>() + "\n");
   }
 }
 
@@ -520,7 +548,7 @@ bool Settings::createDefaultSettings(fs::FS &fs, bool spec, uint8_t index, const
   File settingsFile = fs.open("/settings.json", FILE_WRITE);
 
   if (!settingsFile) {
-    // Serial.println(F("Failed to create settings file"));
+    // host_connection::console().println(F("Failed to create settings file"));
     return false;
   }
 

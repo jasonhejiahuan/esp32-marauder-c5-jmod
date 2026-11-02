@@ -1,0 +1,13 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync(__dirname+'/../static/app.js','utf8');
+const {PresenceView}=require('../static/presence.js');const elements={};
+const context={data:{aps:[{bssid:'02:00:00:00:00:01',ssid:'lab',online:false},{bssid:'02:00:00:00:00:02',ssid:'隐藏网络',named:false,online:true}],stations:[{mac:'02:00:00:00:00:03'}],ble:[],selection:{ap:{'02:00:00:00:00:01':{index:77,selected:true}}}},settings:{hideOffline:true,hideUnnamed:true,hideBleOffline:false,hideBleUnnamed:false},apView:new PresenceView(),stationView:new PresenceView(),bleView:new PresenceView(),$:id=>elements[id]??=( {} )};
+vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('function namedDevice'),source.indexOf('function renderSelection')),context);
+assert.equal(vm.runInContext('sortedAPs().length',context),0);assert.equal(vm.runInContext('knownStations().length',context),0);
+vm.runInContext('renderVisibility()',context);assert.equal(elements['hidden-offline-count'].textContent,1);assert.equal(elements['hidden-unnamed-count'].textContent,2);
+assert(vm.runInContext("selectionBadge('ap','02:00:00:00:00:01')",context).includes('AP #77'));
+context.settings.hideOffline=false;context.settings.hideUnnamed=false;assert.equal(vm.runInContext('sortedAPs().length',context),2);
+assert.equal(vm.runInContext("namedDevice({name:'02:00:00:00:00:01',mac:'02:00:00:00:00:01'},'ble')",context),false);
+assert.equal(vm.runInContext("namedDevice({name:'Keyboard',mac:'02:00:00:00:00:01'},'ble')",context),true);
+console.log('PASS: hide counts exclude overlap; unnamed AP/STA/BLE; real firmware index and selection badges');

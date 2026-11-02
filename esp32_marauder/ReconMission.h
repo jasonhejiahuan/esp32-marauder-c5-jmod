@@ -9,7 +9,7 @@
 #include "ReconUi.h"
 
 #include <Arduino.h>
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   #include <FS.h>
 #endif
 
@@ -93,7 +93,7 @@ class ReconMission {
   uint32_t band_24_observations = 0;
   uint32_t band_5_observations = 0;
   uint16_t channel_activity[DUAL_BAND_CHANNELS] = {};
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     File log_file;
     File probe_file;
     File relationship_file;

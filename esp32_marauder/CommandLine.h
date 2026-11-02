@@ -12,12 +12,12 @@
 
 #include "WiFiScan.h"
 //#include "Web.h"
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   #include "SDInterface.h"
 #endif
 #include "settings.h"
 #include "ReconMission.h"
-#if defined(HAS_NEOPIXEL_LED)
+#if defined(HAS_NEOPIXEL_LED) || defined(HAS_STATUS_LED)
   #include "LedInterface.h"
 #endif
 
@@ -28,12 +28,12 @@
 
 extern WiFiScan wifi_scan_obj;
 //extern Web web_obj;
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   extern SDInterface sd_obj;
 #endif
 extern Settings settings_obj;
 extern ReconMission recon_obj;
-#if defined(HAS_NEOPIXEL_LED)
+#if defined(HAS_NEOPIXEL_LED) || defined(HAS_STATUS_LED)
   extern LedInterface led_obj;
 #endif
 extern LinkedList<AccessPoint>* access_points;
@@ -139,13 +139,13 @@ const char PROGMEM HELP_HEAD[] = "============ Commands ============";
 const char PROGMEM HELP_CH_CMD[] = "channel [-s <channel>]";
 const char PROGMEM HELP_CLEARAP_CMD_A[] = "clearlist -a/-c/-s";
 const char PROGMEM HELP_REBOOT_CMD[] = "reboot";
-const char PROGMEM HELP_UPDATE_CMD_A[] = "update -s/-w";
+const char PROGMEM HELP_UPDATE_CMD_A[] = "update -s";
 const char PROGMEM HELP_SETTINGS_CMD[] = "settings [-s <setting> enable/disable>]/[-r]";
 const char PROGMEM HELP_LS_CMD[] = "ls <directory>";
 const char PROGMEM HELP_PROTOCOL_INFO_CMD[] = "protocolinfo [--machine <transaction-id>]";
-const char PROGMEM HELP_BACKUP_SPIFFS_CMD[] = "backupspiffs [--machine <transaction-id>] - copy SPIFFS to /spiffs on SD";
-const char PROGMEM HELP_BACKUP_STATUS_CMD[] = "backupstatus [--machine <transaction-id>] - inspect /spiffs on SD";
-const char PROGMEM HELP_RESTORE_SPIFFS_CMD[] = "restorespiffs [--machine <transaction-id>] - restore SPIFFS from /spiffs on SD";
+const char PROGMEM HELP_BACKUP_SPIFFS_CMD[] = "backupspiffs [--machine <transaction-id>] - copy SPIFFS to /spiffs on application storage";
+const char PROGMEM HELP_BACKUP_STATUS_CMD[] = "backupstatus [--machine <transaction-id>] - inspect /spiffs on application storage";
+const char PROGMEM HELP_RESTORE_SPIFFS_CMD[] = "restorespiffs [--machine <transaction-id>] - restore SPIFFS from /spiffs on application storage";
 const char PROGMEM HELP_LED_CMD[] = "led -s <hex color>/-p <rainbow>";
 const char PROGMEM HELP_GPS_DATA_CMD[] = "gpsdata";
 const char PROGMEM HELP_GPS_CMD[] = "gps [-t] [-g] <fix/sat/lon/lat/alt/date/accuracy/text/nmea>\r\n    [-n] <native/all/gps/glonass/galileo/navic/qzss/beidou>\r\n         [-b = use BD vs GB for beidou]";
@@ -161,14 +161,19 @@ const char PROGMEM HELP_PACKET_COUNT_CMD[] = "packetcount";
 const char PROGMEM HELP_SIGSTREN_CMD[] = "foxhunt -w <ap>/-s <ap> <station>/-b <ble>/-t <findmy>/-f <flipper>/-p <pineapple>/-m <multissid>";
 const char PROGMEM HELP_SCAN_ALL_CMD[] = "scanall";
 //const char PROGMEM HELP_SCANSTA_CMD[] = "scansta";
-const char PROGMEM HELP_SNIFF_RAW_CMD[] = "sniffraw";
-const char PROGMEM HELP_SNIFF_BEACON_CMD[] = "sniffbeacon";
-const char PROGMEM HELP_SNIFF_PROBE_CMD[] = "sniffprobe";
-const char PROGMEM HELP_SNIFF_PWN_CMD[] = "sniffpwn";
-const char PROGMEM HELP_SNIFF_PINESCAN_CMD[] = "sniffpinescan";
-const char PROGMEM HELP_SNIFF_MULTISSID_CMD[] = "sniffmultissid";
-const char PROGMEM HELP_SNIFF_DEAUTH_CMD[] = "sniffdeauth";
-const char PROGMEM HELP_SNIFF_PMKID_CMD[] = "sniffpmkid [-c <channel>][-d][-l]";
+#ifdef HOST_CONNECTION_ENABLED
+#define HOST_SNIFF_HELP " [--host-only]"
+#else
+#define HOST_SNIFF_HELP ""
+#endif
+const char PROGMEM HELP_SNIFF_RAW_CMD[] = "sniffraw" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_BEACON_CMD[] = "sniffbeacon" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_PROBE_CMD[] = "sniffprobe" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_PWN_CMD[] = "sniffpwn" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_PINESCAN_CMD[] = "sniffpinescan" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_MULTISSID_CMD[] = "sniffmultissid" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_DEAUTH_CMD[] = "sniffdeauth" HOST_SNIFF_HELP;
+const char PROGMEM HELP_SNIFF_PMKID_CMD[] = "sniffpmkid [-c <channel>][-d][-l]" HOST_SNIFF_HELP;
 const char PROGMEM HELP_STOPSCAN_CMD[] = "stopscan [-f]";
 const char PROGMEM HELP_WARDRIVE_CMD[] = "wardrive";
 const char PROGMEM HELP_GEOFENCE_CMD[] = "geofence list/set <1-5> <lat> <lon> <0.1-1.0 mi> \"<name>\"/clear <1-5>";
@@ -176,7 +181,7 @@ const char PROGMEM HELP_PING_CMD[] = "pingscan";
 const char PROGMEM HELP_PORT_SCAN_CMD[] = "portscan [-a -t <ip index>]/[-s <ssh/telnet/dns/http/smtp/https/rdp>]";
 const char PROGMEM HELP_ARP_SCAN_CMD[] = "arpscan [-f]";
 const char PROGMEM HELP_MAC_TRACK_CMD[] = "mactrack";
-const char PROGMEM HELP_SNIFF_SAE_CMD[] = "sniffsae";
+const char PROGMEM HELP_SNIFF_SAE_CMD[] = "sniffsae" HOST_SNIFF_HELP;
 const char PROGMEM HELP_REMOTE_ID_CMD[] = "remoteid <scan/list/track/clear> [index]";
 
 // WiFi attack

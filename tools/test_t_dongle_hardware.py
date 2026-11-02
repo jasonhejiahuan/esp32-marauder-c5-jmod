@@ -98,7 +98,8 @@ class TDongleHardwareTests(unittest.TestCase):
                 partition_step,
             )
 
-        self.assertFalse((ROOT / "esp32_marauder" / "partitions.csv").exists())
+        # Other profiles may provide a sketch partition table; the guarded
+        # workflow step above must still replace it for T-Dongle builds.
         self.assertTrue((ROOT / "installer" / "partitions" / "t_dongle_c5.csv").is_file())
 
 

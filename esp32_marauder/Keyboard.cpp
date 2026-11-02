@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "Keyboard.h"
 
 #if defined(MARAUDER_CARDPUTER) || defined(MARAUDER_CARDPUTER_ADV)
@@ -73,7 +74,7 @@ void Keyboard_Class::begin()
         attachInterrupt(digitalPinToInterrupt(11), _tca_isr, FALLING);
         _tca_interrupt = true;  // Force initial scan
     } else {
-        Serial.println("[ERROR] TCA8418 keyboard not found on I2C (addr 0x34)");
+        host_connection::console().println("[ERROR] TCA8418 keyboard not found on I2C (addr 0x34)");
     }
 #endif
 }

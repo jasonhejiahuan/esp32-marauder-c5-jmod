@@ -1,5 +1,6 @@
 
 .pio/
+.build/
 .venv/
 coverage.xml
 .vscode/arduino.json
@@ -8,3 +9,47 @@ coverage.xml
 esp32_marauder/.vscode/settings.json
 __pycache__/
 *.pyc
+
+# Local build, update, and diagnostic output; test source remains tracked.
+/.build/
+/build/
+/releases/
+/outputs/
+/work/
+/update-logs/
+/backups/
+/captures/
+/diagnostics/
+/logs/
+/test-results/
+/coverage/
+/.pytest_cache/
+/discovery-build.json
+*.log
+*.pcap
+*.pcapng
+*.har
+*.dmp
+*.dump
+*.trace
+*.profraw
+*.bak
+*.backup
+factory-*.bin
+*-backup*.bin
+
+# Machine-specific files and credentials.
+.DS_Store
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.swp
+
+# Legacy prebuilt firmware is available in upstream history, not JMOD source.
+/Release Bins/
+/esp32_marauder/PreviousVersions/
+/C5_Py_Flasher_for_*/

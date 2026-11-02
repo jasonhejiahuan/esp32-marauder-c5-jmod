@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #pragma once
 #ifndef utils_h
 #define utils_h
@@ -250,16 +251,16 @@ inline String base64Encode(const String& input) {
 
 inline static void printHex(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
-    if (data[i] < 0x10) Serial.print('0');
-    Serial.print(data[i], HEX);
-    if (i + 1 < len) Serial.print(' ');
+    if (data[i] < 0x10) host_connection::console().print('0');
+    host_connection::console().print(data[i], HEX);
+    if (i + 1 < len) host_connection::console().print(' ');
   }
 }
 
 inline static void printStringData(const char *label, const std::string &data) {
-  Serial.printf("%s [%u]: ", label, (unsigned)data.length());
+  host_connection::console().printf("%s [%u]: ", label, (unsigned)data.length());
   printHex((const uint8_t *)data.data(), data.length());
-  Serial.println();
+  host_connection::console().println();
 }
 
 inline static uint8_t rssiToMenuColor(int rssi) {

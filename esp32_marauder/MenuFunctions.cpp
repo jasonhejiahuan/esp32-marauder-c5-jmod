@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "MenuFunctions.h"
 #include "MenuMarquee.h"
 #include "CommandLine.h"
@@ -263,7 +264,7 @@ void MenuFunctions::main(uint32_t currentTime)
       this->buildGeofenceMenu();
     }
   #endif
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_browser_release_pending && current_menu != &sdDeleteMenu)
       this->releaseSDDeleteBrowserResources();
   #endif
@@ -1352,7 +1353,7 @@ void MenuFunctions::updateStatusBar()
   #endif
 
   // Draw SD info
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_obj.supported)
       the_color = TFT_GREEN;
     else
@@ -1540,7 +1541,7 @@ void MenuFunctions::drawStatusBar()
   #endif
 
   // Draw SD info
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_obj.supported)
       the_color = TFT_GREEN;
     else
@@ -1750,16 +1751,16 @@ bool MenuFunctions::isKeyPressed(char c)
           if (!sd_obj.sd_files->get(i).endsWith(".wdg") && !sd_obj.sd_files->get(i).endsWith(".wigle") && !sd_obj.sd_files->get(i).endsWith(".gpx")) {
             this->addNodes(&uploadLogsMenu, sd_obj.sd_files->get(i).c_str(), TFTCYAN, 0, [this, i]() {
               sd_obj.selected_file_name = sd_obj.sd_files->get(i);
-              Serial.println(sd_obj.sd_files->get(i) + " selected");
+              host_connection::console().println(sd_obj.sd_files->get(i) + " selected");
               this->changeMenu(&actionMenu, true);
             });
           }
         }
       }
 
-      Serial.println("Built SD file menu with " + (String)sd_obj.sd_files->size() + " files");
+      host_connection::console().println("Built SD file menu with " + (String)sd_obj.sd_files->size() + " files");
     } else {
-      Serial.println("SD Card not detected. Skipping menu creation...");
+      host_connection::console().println("SD Card not detected. Skipping menu creation...");
     }
   }
 #endif
@@ -2108,7 +2109,7 @@ void MenuFunctions::RunSetup()
   // WiFi HTML menu stuff
   htmlMenu.list = new LinkedList<MenuNode>();
   miniKbMenu.list = new LinkedList<MenuNode>();
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     sdDeleteMenu.list = nullptr;
   #endif
 
@@ -2207,7 +2208,7 @@ void MenuFunctions::RunSetup()
   htmlMenu.name = "EP HTML List";
   miniKbMenu.name = "Mini Keyboard";
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     sdDeleteMenu.name = "Delete SD Files";
   #endif
 
@@ -2315,7 +2316,7 @@ void MenuFunctions::RunSetup()
     for (int i = 0; i < ipList->size(); i++) {
       // This is the menu node
       this->addNodes(&wifiIPMenu, ipList->get(i).toString().c_str(), TFTBLUE, 255, [this, i](){
-        Serial.println("Selected: " + ipList->get(i).toString());
+        host_connection::console().println("Selected: " + ipList->get(i).toString());
         wifi_scan_obj.current_scan_ip = ipList->get(i);
         display_obj.clearScreen();
         this->drawStatusBar();
@@ -2816,7 +2817,7 @@ void MenuFunctions::RunSetup()
         this->addNodes(&htmlMenu, evil_portal_obj.html_files->get(i).c_str(), TFTCYAN, 255, [this, i](){
           evil_portal_obj.selected_html_index = i;
           evil_portal_obj.target_html_name = evil_portal_obj.html_files->get(evil_portal_obj.selected_html_index);
-          Serial.println("Set Evil Portal HTML as " + evil_portal_obj.target_html_name);
+          host_connection::console().println("Set Evil Portal HTML as " + evil_portal_obj.target_html_name);
           evil_portal_obj.using_serial_html = false;
           this->changeMenu(htmlMenu.parentMenu, true);
           return;
@@ -3012,7 +3013,7 @@ void MenuFunctions::RunSetup()
             this->changeMenu(&miniKbMenu, true);
             String password = this->miniKeyboard(&miniKbMenu, true);
             if (password != "") {
-              Serial.println("Using SSID: " + (String)access_points->get(i).essid);
+              host_connection::console().println("Using SSID: " + (String)access_points->get(i).essid);
               #ifndef MARAUDER_POOM
                 wifi_scan_obj.currentScanMode = LV_JOIN_WIFI;
                 wifi_scan_obj.StartScan(LV_JOIN_WIFI, TFT_YELLOW);
@@ -3096,7 +3097,7 @@ void MenuFunctions::RunSetup()
             this->changeMenu(&miniKbMenu, true);
             String password = this->miniKeyboard(&miniKbMenu, true);
             if (password != "") {
-              Serial.println("Using SSID: " + (String)ssids->get(i).essid);
+              host_connection::console().println("Using SSID: " + (String)ssids->get(i).essid);
               wifi_scan_obj.currentScanMode = LV_JOIN_WIFI;
               wifi_scan_obj.StartScan(LV_JOIN_WIFI, TFT_YELLOW); 
               wifi_scan_obj.startWiFi(ssids->get(i).essid, password);
@@ -3108,7 +3109,7 @@ void MenuFunctions::RunSetup()
           #ifdef HAS_TOUCH
             char passwordBuf[64] = {0};  // or prefill with existing SSID
             if (keyboardInput(passwordBuf, sizeof(passwordBuf), "Enter Password")) {
-              Serial.println("Using SSID: " + (String)ssids->get(i).essid);
+              host_connection::console().println("Using SSID: " + (String)ssids->get(i).essid);
               wifi_scan_obj.startWiFi(ssids->get(i).essid, String(passwordBuf));
             }
 
@@ -3184,7 +3185,7 @@ void MenuFunctions::RunSetup()
           for (int i = 0; i < sd_obj.sd_files->size(); i++) {
             if (sd_obj.sd_files->get(i).startsWith("wardrive_") || sd_obj.sd_files->get(i).startsWith("wigle-")) {
               if (!sd_obj.sd_files->get(i).endsWith(".wigle") && !sd_obj.sd_files->get(i).endsWith(".wdg") && !sd_obj.sd_files->get(i).endsWith(".gpx")) {
-                Serial.println("Uploading " + sd_obj.sd_files->get(i) + "...");
+                host_connection::console().println("Uploading " + sd_obj.sd_files->get(i) + "...");
                 if (wifi_scan_obj.uploadFile("/" + sd_obj.sd_files->get(i), true, WIGLE_UPLOAD)) {
                   display_obj.clearScreen();
                   display_obj.showCenterText("WiGLE OK", TFT_HEIGHT / 2);
@@ -3230,7 +3231,7 @@ void MenuFunctions::RunSetup()
           for (int i = 0; i < sd_obj.sd_files->size(); i++) {
             if (sd_obj.sd_files->get(i).startsWith("wardrive_") || sd_obj.sd_files->get(i).startsWith("wigle-")) {
               if (!sd_obj.sd_files->get(i).endsWith(".wigle") && !sd_obj.sd_files->get(i).endsWith(".wdg") && !sd_obj.sd_files->get(i).endsWith(".gpx")) {
-                Serial.println("Uploading " + sd_obj.sd_files->get(i) + "...");
+                host_connection::console().println("Uploading " + sd_obj.sd_files->get(i) + "...");
                 if (wifi_scan_obj.uploadFile("/" + sd_obj.sd_files->get(i), true, WDG_UPLOAD)) {
                   display_obj.clearScreen();
                   display_obj.showCenterText("WDG OK", TFT_HEIGHT / 2);
@@ -3276,7 +3277,7 @@ void MenuFunctions::RunSetup()
           for (int i = 0; i < sd_obj.sd_files->size(); i++) {
             if (sd_obj.sd_files->get(i).startsWith("wardrive_") || sd_obj.sd_files->get(i).startsWith("wigle-")) {
               if (!sd_obj.sd_files->get(i).endsWith(".wigle") && !sd_obj.sd_files->get(i).endsWith(".wdg") && !sd_obj.sd_files->get(i).endsWith(".gpx")) {
-                Serial.println("Uploading " + sd_obj.sd_files->get(i) + "...");
+                host_connection::console().println("Uploading " + sd_obj.sd_files->get(i) + "...");
                 if (wifi_scan_obj.uploadFile("/" + sd_obj.sd_files->get(i), true, BOTH_UPLOAD)) {
                   display_obj.clearScreen();
                   display_obj.showCenterText("Upload OK", TFT_HEIGHT / 2);
@@ -3312,12 +3313,12 @@ void MenuFunctions::RunSetup()
       for (int i = 0; i < sd_obj.sd_files->size(); i++) {
         if (sd_obj.sd_files->get(i).startsWith("wardrive_") || sd_obj.sd_files->get(i).startsWith("wigle-")) {
           if (sd_obj.removeFile("/" + sd_obj.sd_files->get(i))) {
-            Serial.println("Removed file: " + sd_obj.sd_files->get(i));
+            host_connection::console().println("Removed file: " + sd_obj.sd_files->get(i));
             sd_obj.removeFile("/" + sd_obj.sd_files->get(i) + ".wdg");
             sd_obj.removeFile("/" + sd_obj.sd_files->get(i) + ".wigle");
           }
           else {
-            Serial.println("Could not remove file: " + sd_obj.sd_files->get(i));
+            host_connection::console().println("Could not remove file: " + sd_obj.sd_files->get(i));
           }
         }
       }
@@ -3359,7 +3360,7 @@ void MenuFunctions::RunSetup()
         }
         else {
           delay(1000);
-          Serial.println("Uploading " + sd_obj.selected_file_name + "...");
+          host_connection::console().println("Uploading " + sd_obj.selected_file_name + "...");
           if (wifi_scan_obj.uploadFile("/" + sd_obj.selected_file_name, true, WIGLE_UPLOAD)) {
             display_obj.clearScreen();
             display_obj.showCenterText("WiGLE OK", TFT_HEIGHT / 2, true);
@@ -3400,7 +3401,7 @@ void MenuFunctions::RunSetup()
         }
         else {
           delay(1000);
-          Serial.println("Uploading " + sd_obj.selected_file_name + "...");
+          host_connection::console().println("Uploading " + sd_obj.selected_file_name + "...");
           if (wifi_scan_obj.uploadFile("/" + sd_obj.selected_file_name, true, WDG_UPLOAD)) {
             display_obj.clearScreen();
             display_obj.showCenterText("WDG OK", TFT_HEIGHT / 2, true);
@@ -3441,7 +3442,7 @@ void MenuFunctions::RunSetup()
         }
         else {
           delay(1000);
-          Serial.println("Uploading " + sd_obj.selected_file_name + "...");
+          host_connection::console().println("Uploading " + sd_obj.selected_file_name + "...");
           if (wifi_scan_obj.uploadFile("/" + sd_obj.selected_file_name, true, BOTH_UPLOAD)) {
             display_obj.clearScreen();
             display_obj.showCenterText("Upload OK", TFT_HEIGHT / 2, true);
@@ -3815,7 +3816,7 @@ void MenuFunctions::RunSetup()
     this->changeMenu(deviceMenu.parentMenu, true);
   });
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_obj.supported) {
 
       sdDeleteMenu.parentMenu = &deviceMenu;
@@ -3866,7 +3867,7 @@ void MenuFunctions::RunSetup()
     this->buildGeofenceMenu();
   });
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_obj.supported) {
 
       sdDeleteMenu.parentMenu = &deviceMenu;
@@ -4044,7 +4045,7 @@ void MenuFunctions::RunSetup()
     }
   }
 
-  Serial.println("Finished settings nodes");
+  host_connection::console().println("Finished settings nodes");
 
   // Specific setting menu
   specSettingMenu.parentMenu = &settingsMenu;
@@ -4073,7 +4074,7 @@ void MenuFunctions::RunSetup()
     this->changeMenu(iBeaconInfoMenu.parentMenu, true);
   });
 
-  Serial.println("Changing to main menu...");
+  host_connection::console().println("Changing to main menu...");
 
   // Set the current menu to the mainMenu
   this->changeMenu(&mainMenu, true);
@@ -4925,11 +4926,11 @@ void MenuFunctions::buildSDDeleteBrowser(const String& path, bool reset_selectio
       for (int i = 0; i < sd_delete_selection->size(); i++) {
         String selected_path = sd_delete_selection->get(i);
         if (sd_obj.removeFile(selected_path)) {
-          Serial.println("Deleted " + selected_path);
+          host_connection::console().println("Deleted " + selected_path);
           deleted++;
         }
         else {
-          Serial.println("Could not delete " + selected_path);
+          host_connection::console().println("Could not delete " + selected_path);
         }
       }
       sd_delete_selection->clear();
@@ -4982,7 +4983,7 @@ void MenuFunctions::buildSDDeleteBrowser(const String& path, bool reset_selectio
 // Function to add MenuNodes to a menu
 void MenuFunctions::addNodes(Menu * menu, const char* name, uint8_t color, int place, std::function<void()> callable, bool selected)
 {
-  //Serial.println("Building node: " + name);
+  //host_connection::console().println("Building node: " + name);
   menu->list->add(MenuNode{String(name), false, color, place, selected, callable});
 }
 
@@ -5213,7 +5214,7 @@ uint16_t MenuFunctions::getColor(uint16_t color) {
 
 // Function to change menu
 void MenuFunctions::changeMenu(Menu* menu, bool simple_change) {
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     const bool leaving_sd_browser = current_menu == &sdDeleteMenu && menu != &sdDeleteMenu;
   #endif
 
@@ -5239,7 +5240,7 @@ void MenuFunctions::changeMenu(Menu* menu, bool simple_change) {
 
   displayCurrentMenu();
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (leaving_sd_browser)
       sd_browser_release_pending = true;
   #endif
@@ -5314,7 +5315,7 @@ void MenuFunctions::buildButtons(Menu *menu, int starting_index, const char* but
 
 void MenuFunctions::displayCurrentMenu(int start_index)
 {
-  //Serial.println(F("Displaying current menu..."));
+  //host_connection::console().println(F("Displaying current menu..."));
   marquee_menu = nullptr;
   marquee_selected = 0xFFFF;
   marquee_rendered_offset = 0;

@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "EvilPortal.h"
 
 char apName[MAX_AP_NAME_SIZE] = "PORTAL";
@@ -17,12 +18,12 @@ void EvilPortal::setup() {
 
   html_files = new LinkedList<String>();
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (sd_obj.supported) {
       sd_obj.listDirToLinkedList(html_files, "/", "html");
 
       #ifndef MARAUDER_V8
-        Serial.println("Evil Portal Found " + (String)html_files->size() + " HTML files");
+        host_connection::console().println("Evil Portal Found " + (String)html_files->size() + " HTML files");
       #endif
     }
   #endif
@@ -71,7 +72,7 @@ void EvilPortal::setupServer() {
     server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
       request->send_P(200, "text/html", index_html);
       #ifndef MARAUDER_V8
-        Serial.println(F("client connected"));
+        host_connection::console().println(F("client connected"));
       #endif
       #ifdef HAS_SCREEN
         this->sendToDisplay(F("Client connected to server"));
@@ -81,7 +82,7 @@ void EvilPortal::setupServer() {
     server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
       request->send(200, "text/html", index_html);
       #ifndef MARAUDER_V8
-        Serial.println("client connected");
+        host_connection::console().println("client connected");
       #endif
       #ifdef HAS_SCREEN
         this->sendToDisplay(F("Client connected to server"));
@@ -141,35 +142,42 @@ void EvilPortal::setupServer() {
 }
 
 void EvilPortal::setHtmlFromSerial() {
+
   #ifndef MARAUDER_V8
-    Serial.println(F("Setting HTML from serial..."));
+    host_connection::console().println(F("Setting HTML from serial..."));
   #endif
-  const char *htmlStr = Serial.readString().c_str();
+  #ifdef HOST_CONNECTION_ENABLED
+  String htmlInput=host_connection::readLegacyInput(MAX_HTML_SIZE-1,1000);
+  #else
+  String htmlInput=Serial.readString();
+  #endif
+  if(htmlInput.isEmpty())return;
+  const char *htmlStr=htmlInput.c_str();
   #ifdef HAS_PSRAM
     index_html = (char*) ps_malloc(MAX_HTML_SIZE);
   #endif
-  strlcpy(index_html, htmlStr, strlen(htmlStr));
+  strlcpy(index_html, htmlStr, MAX_HTML_SIZE);
   #ifdef HAS_PSRAM
     index_html[MAX_HTML_SIZE - 1] = '\0';
   #endif
   this->has_html = true;
   this->using_serial_html = true;
   #ifndef MARAUDER_V8
-    Serial.println("html set");
+    host_connection::console().println("html set");
   #endif
 }
 
 bool EvilPortal::setHtml() {
   if (this->using_serial_html) {
     #ifndef MARAUDER_V8
-      Serial.println(F("html previously set"));
+      host_connection::console().println(F("html previously set"));
     #endif
     return true;
   }
   #ifndef MARAUDER_V8
-    Serial.println(F("Setting HTML..."));
+    host_connection::console().println(F("Setting HTML..."));
   #endif
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     File html_file = sd_obj.getFile("/" + this->target_html_name);
   #else
     File html_file;
@@ -180,7 +188,7 @@ bool EvilPortal::setHtml() {
       this->sendToDisplay(F("Touch to exit..."));
     #endif
     #ifndef MARAUDER_V8
-      Serial.println("Could not find /" + this->target_html_name + ". Use stopscan...");
+      host_connection::console().println("Could not find /" + this->target_html_name + ". Use stopscan...");
     #endif
     return false;
   }
@@ -190,7 +198,7 @@ bool EvilPortal::setHtml() {
         this->sendToDisplay(F("The given HTML is too large. Touch to exit..."));
       #endif
       #ifndef MARAUDER_V8
-        Serial.println("The provided HTML is too large.\nUse stopscan...");
+        host_connection::console().println("The provided HTML is too large.\nUse stopscan...");
       #endif
       return false;
     }
@@ -209,7 +217,7 @@ bool EvilPortal::setHtml() {
     #endif
     this->has_html = true;
     #ifndef MARAUDER_V8
-      Serial.println("html set");
+      host_connection::console().println("html set");
     #endif
     html_file.close();
     return true;
@@ -243,7 +251,7 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
         this->sendToDisplay(F("The given AP name is too large. Touch to exit..."));
       #endif
       #ifndef MARAUDER_V8
-        Serial.println("The provided AP name is too large.\nUse stopscan...");
+        host_connection::console().println("The provided AP name is too large.\nUse stopscan...");
       #endif
       return false;
     }
@@ -252,7 +260,7 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
       this->sendToDisplay("AP name: " + ap_config);
     #endif
     #ifndef MARAUDER_V8
-      Serial.println("AP name from SSID list: " + ap_config);
+      host_connection::console().println("AP name from SSID list: " + ap_config);
     #endif
   }
   else if (temp_ap_name != "") {
@@ -261,7 +269,7 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
         this->sendToDisplay(F("The given AP name is too large. Touch to exit..."));
       #endif
       #ifndef MARAUDER_V8
-        Serial.println("The given AP name is too large.\nUse stopscan...");
+        host_connection::console().println("The given AP name is too large.\nUse stopscan...");
       #endif
     }
     else {
@@ -271,13 +279,13 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
         this->sendToDisplay("AP name: " + ap_config);
       #endif
       #ifndef MARAUDER_V8
-        Serial.println("AP name from AP list: " + ap_config);
+        host_connection::console().println("AP name from AP list: " + ap_config);
       #endif
     }
   }
   else {
     #ifndef MARAUDER_V8
-      Serial.println(F("Could not configure Access Point. Use stopscan..."));
+      host_connection::console().println(F("Could not configure Access Point. Use stopscan..."));
     #endif
     #if defined(HAS_SCREEN) && !defined(MARAUDER_V8)
       this->sendToDisplay(F("Could not configure Access Point.\nTouch to exit..."));
@@ -288,7 +296,7 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
     strncpy(apName, ap_config.c_str(), MAX_AP_NAME_SIZE);
     this->has_ap = true;
     #ifndef MARAUDER_V8
-      Serial.println(F("ap config set"));
+      host_connection::console().println(F("ap config set"));
     #endif
     this->ap_index = targ_ap_index;
     return true;
@@ -299,7 +307,7 @@ bool EvilPortal::setAP(LinkedList<ssid>* ssids, LinkedList<AccessPoint>* access_
 }
 
 bool EvilPortal::setAPFromConfig() {
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     File ap_config_file = sd_obj.getFile("/ap.config.txt");
   #else
     File ap_config_file;
@@ -334,7 +342,7 @@ bool EvilPortal::setAP(String essid) {
   apName[MAX_AP_NAME_SIZE - 1] = '\0';
   this->has_ap = true;
   #ifndef MARAUDER_V8
-    Serial.println(F("ap config set"));
+    host_connection::console().println(F("ap config set"));
   #endif
   return true;
 }
@@ -347,8 +355,8 @@ void EvilPortal::startAP() {
   WiFi.softAP(apName);
 
   #ifndef MARAUDER_V8
-    Serial.print(F("ap ip address: "));
-    Serial.println(WiFi.softAPIP());
+    host_connection::console().print(F("ap ip address: "));
+    host_connection::console().println(WiFi.softAPIP());
   #endif
 
   // Register the web-server endpoints + captive handler ONCE for the app lifetime.
@@ -367,7 +375,7 @@ void EvilPortal::startAP() {
 
   this->dnsServer.start(53, "*", WiFi.softAPIP());
   #ifndef MARAUDER_V8
-    Serial.println(F("Evil Portal READY"));
+    host_connection::console().println(F("Evil Portal READY"));
   #endif
   #ifdef HAS_SCREEN
     this->sendToDisplay(F("Evil Portal READY"));
@@ -416,7 +424,7 @@ void EvilPortal::main(uint8_t scan_mode) {
              this->user_name.c_str(),
              this->password.c_str());
 
-    Serial.print(line);
+    host_connection::console().print(line);
     buffer_obj.append(line);
     #ifdef HAS_SCREEN
         this->sendToDisplay(line);

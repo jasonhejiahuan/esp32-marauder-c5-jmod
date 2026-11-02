@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "ReconMission.h"
 
 #include "Buffer.h"
@@ -8,7 +9,7 @@
 #ifdef HAS_GPS
   #include "GpsInterface.h"
 #endif
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   #include "SDInterface.h"
 #endif
 
@@ -27,11 +28,21 @@ extern Buffer buffer_obj;
 #ifdef HAS_GPS
   extern GpsInterface gps_obj;
 #endif
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   extern SDInterface sd_obj;
 #endif
 
 namespace {
+#ifdef HAS_STORAGE
+bool writeStorageRecord(File& file, const uint8_t* data, size_t size) {
+  if (!file) return false;
+  if (file.write(data, size) == size) return true;
+  host_connection::console().println("[Storage] Recon write failed; closing affected file");
+  file.close();
+  return false;
+}
+#endif
+
 struct __attribute__((packed)) ReconLogHeader {
   char magic[4] = {'R', 'C', 'N', '1'};
 };
@@ -109,13 +120,13 @@ bool ReconMission::start(ReconMode mode) {
   suppress_scan_ui = true;
 
   buffer_obj.setDirectory(NULL);
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     session_dir[0] = '\0';
     if (sd_obj.supported) {
-      SD.mkdir("/recon");
+      storageFS().mkdir("/recon");
       for (uint16_t index = 0; index < 10000; index++) {
         snprintf(session_dir, sizeof(session_dir), "/recon/m%04u", index);
-        if (!SD.exists(session_dir) && SD.mkdir(session_dir)) break;
+        if (!storageFS().exists(session_dir) && storageFS().mkdir(session_dir)) break;
         session_dir[0] = '\0';
       }
       if (session_dir[0]) buffer_obj.setDirectory(session_dir);
@@ -132,26 +143,26 @@ bool ReconMission::start(ReconMode mode) {
     state.consume(ReconSource::BLE_LIST, ble_devices ? ble_devices->size() : 0);
   }
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (session_dir[0]) {
       char file_name[36];
       snprintf(file_name, sizeof(file_name), "%s/obs.rlog", session_dir);
-      log_file = SD.open(file_name, FILE_WRITE);
+      log_file = storageFS().open(file_name, FILE_WRITE);
       if (log_file) {
         const ReconLogHeader header;
-        log_file.write(reinterpret_cast<const uint8_t*>(&header), sizeof(header));
+        writeStorageRecord(log_file, reinterpret_cast<const uint8_t*>(&header), sizeof(header));
       }
       snprintf(file_name, sizeof(file_name), "%s/probes.rlog", session_dir);
-      probe_file = SD.open(file_name, FILE_WRITE);
+      probe_file = storageFS().open(file_name, FILE_WRITE);
       if (probe_file) {
         const ReconProbeHeader header;
-        probe_file.write(reinterpret_cast<const uint8_t*>(&header), sizeof(header));
+        writeStorageRecord(probe_file, reinterpret_cast<const uint8_t*>(&header), sizeof(header));
       }
       snprintf(file_name, sizeof(file_name), "%s/relations.rlog", session_dir);
-      relationship_file = SD.open(file_name, FILE_WRITE);
+      relationship_file = storageFS().open(file_name, FILE_WRITE);
       if (relationship_file) {
         const ReconRelationshipHeader header;
-        relationship_file.write(reinterpret_cast<const uint8_t*>(&header), sizeof(header));
+        writeStorageRecord(relationship_file, reinterpret_cast<const uint8_t*>(&header), sizeof(header));
       }
     }
   #endif
@@ -168,7 +179,7 @@ void ReconMission::stop() {
   drainProbeQueue();
   drainRepeatQueue();
   drainDeauthQueue();
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (log_file) {
       log_file.flush();
       log_file.close();
@@ -190,12 +201,12 @@ void ReconMission::stop() {
 
 void ReconMission::writeRelationship(const uint8_t station[6],
                                       const uint8_t access_point[6]) {
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (!relationship_file) return;
     ReconRelationshipRecord record;
     memcpy(record.station, station, sizeof(record.station));
     memcpy(record.access_point, access_point, sizeof(record.access_point));
-    relationship_file.write(reinterpret_cast<const uint8_t*>(&record), sizeof(record));
+    writeStorageRecord(relationship_file, reinterpret_cast<const uint8_t*>(&record), sizeof(record));
   #else
     (void)station;
     (void)access_point;
@@ -316,9 +327,9 @@ void ReconMission::writeObservation(char type, const uint8_t mac[6], int rssi,
     }
   #endif
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (log_file) {
-      log_file.write(reinterpret_cast<const uint8_t*>(&record), sizeof(record));
+      writeStorageRecord(log_file, reinterpret_cast<const uint8_t*>(&record), sizeof(record));
       if (++pending_flush >= 16) {
         log_file.flush();
         pending_flush = 0;
@@ -348,7 +359,7 @@ void ReconMission::writeProbe(const ReconProbeEvent& event) {
   memcpy(label, event.name, min(event.name_length, static_cast<uint8_t>(sizeof(label) - 1)));
   recordUiEvent('p', event.mac, event.rssi, label);
   recordSignal(event.rssi, event.channel);
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (!probe_file) return;
     ReconProbeRecord record = {};
     record.elapsed_ms = event.elapsed_ms;
@@ -363,7 +374,7 @@ void ReconMission::writeProbe(const ReconProbeEvent& event) {
         record.longitude = gps_obj.getLonInt();
       }
     #endif
-    probe_file.write(reinterpret_cast<const uint8_t*>(&record), sizeof(record));
+    writeStorageRecord(probe_file, reinterpret_cast<const uint8_t*>(&record), sizeof(record));
     if (++probe_pending_flush >= 16) {
       probe_file.flush();
       probe_pending_flush = 0;
@@ -484,12 +495,12 @@ void ReconMission::drainDeauthQueue() {
 }
 
 void ReconMission::writeManifest(bool complete) {
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     if (!session_dir[0]) return;
     char path[40];
     snprintf(path, sizeof(path), "%s/session.json", session_dir);
-    SD.remove(path);
-    File manifest = SD.open(path, FILE_WRITE);
+    storageFS().remove(path);
+    File manifest = storageFS().open(path, FILE_WRITE);
     if (!manifest) return;
     bool gps_fix = false;
     #ifdef HAS_GPS

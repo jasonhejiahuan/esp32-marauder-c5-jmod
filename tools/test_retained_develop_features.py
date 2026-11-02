@@ -37,9 +37,9 @@ class RetainedDevelopFeatureTests(unittest.TestCase):
                             source.index("// Stop Scan")]
         self.assertNotIn("ESP32 Marauder commands: https://", help_block)
         self.assertNotIn("#ifdef MARAUDER_V8", help_block)
-        self.assertIn("Serial.println(HELP_HEAD)", help_block)
-        self.assertIn("Serial.println(HELP_PROTOCOL_INFO_CMD)", help_block)
-        self.assertIn("Serial.println(HELP_RESTORE_SPIFFS_CMD)", help_block)
+        self.assertIn("host_connection::console().println(HELP_HEAD)", help_block)
+        self.assertIn("host_connection::console().println(HELP_PROTOCOL_INFO_CMD)", help_block)
+        self.assertIn("host_connection::console().println(HELP_RESTORE_SPIFFS_CMD)", help_block)
 
     def test_ble_recon_supports_both_nimble_api_generations(self):
         header = (ROOT / "esp32_marauder" / "WiFiScan.h").read_text()
