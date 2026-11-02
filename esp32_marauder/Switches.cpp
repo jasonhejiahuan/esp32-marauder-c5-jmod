@@ -1,4 +1,3 @@
-#include "HostConnection.h"
 #include "Switches.h"
 
 Switches::Switches() {
