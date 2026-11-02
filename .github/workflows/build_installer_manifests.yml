@@ -28,7 +28,7 @@ permissions:
 jobs:
   prepare:
     name: Validate tooling and export normal build matrix
-    if: ${{ github.event_name != 'release' || github.event.release.prerelease == false }}
+    if: ${{ (github.repository == 'justcallmekoko/ESP32Marauder' || github.event_name == 'workflow_dispatch') && (github.event_name != 'release' || github.event.release.prerelease == false) }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}

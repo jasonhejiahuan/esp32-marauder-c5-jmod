@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: jmod-checks-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   protocol-and-ui:
     runs-on: ubuntu-latest
