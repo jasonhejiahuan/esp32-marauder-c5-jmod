@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "LedInterface.h"
 #ifdef HAS_T_DONGLE_LED
   #include "TDongleBus.h"
@@ -9,7 +10,11 @@ LedInterface::LedInterface() {
 }
 
 void LedInterface::RunSetup() {
-  //Serial.println("Setting neopixel to black...");
+  #ifdef HAS_STATUS_LED
+    digitalWrite(LED_BUILTIN, HIGH);
+    pinMode(LED_BUILTIN, OUTPUT);
+  #endif
+  //host_connection::console().println("Setting neopixel to black...");
   #ifdef HAS_NEOPIXEL_LED
     #ifdef MARAUDER_M5_NANO_C6
       pinMode(19, OUTPUT);
@@ -36,6 +41,25 @@ void LedInterface::RunSetup() {
 }
 
 void LedInterface::main(uint32_t currentTime) {
+#if defined(MARAUDER_XIAO_C5) || defined(MARAUDER_WAVESHARE_C5_RGB)
+  // Idle status follows the actual protocol session; no extra serial polling.
+  if (current_mode == MODE_OFF) {
+    cancelHostConnectionFeedback();
+    const bool enabled = settings_obj.loadSetting<bool>("EnableLED");
+#if defined(MARAUDER_XIAO_C5)
+    const bool lit = enabled && (host_connection::active() || (currentTime % 2000U < 1000U));
+    digitalWrite(LED_BUILTIN, lit ? LOW : HIGH);
+#else
+    const bool lit = enabled && host_connection::active();
+    this->setColor(lit ? 255 : 0, lit ? 255 : 0, lit ? 255 : 0);
+#endif
+    return;
+  }
+#endif
+  if(hostConnectionFlash.active){
+    if(hostConnectionFlash.finished(currentTime,current_mode==MODE_OFF,settings_obj.loadSetting<bool>("EnableLED")))cancelHostConnectionFeedback();
+    else return;
+  }
   uint8_t mode_to_render = settings_obj.loadSetting<bool>("EnableLED")
                              ? this->current_mode : MODE_OFF;
 
@@ -69,7 +93,30 @@ void LedInterface::main(uint32_t currentTime) {
 };
 
 void LedInterface::setMode(uint8_t new_mode) {
+  cancelHostConnectionFeedback();
   this->current_mode = new_mode;
+}
+
+void LedInterface::hostConnectionFeedback() {
+#if defined(MARAUDER_WAVESHARE_C5_RGB) && defined(HAS_NEOPIXEL_LED)
+  if(!hostConnectionFlash.start(millis(),current_mode==MODE_OFF&&strip.getPixelColor(0)==0,settings_obj.loadSetting<bool>("EnableLED")))return;
+  hostConnectionBrightness=strip.getBrightness();
+  strip.setBrightness(128);strip.setPixelColor(0,strip.Color(255,255,255));strip.show();
+#elif defined(HAS_STATUS_LED)
+  if(hostConnectionFlash.start(millis(),current_mode==MODE_OFF && digitalRead(LED_BUILTIN)==HIGH,settings_obj.loadSetting<bool>("EnableLED")))digitalWrite(LED_BUILTIN,LOW);
+#endif
+}
+
+void LedInterface::cancelHostConnectionFeedback() {
+#if defined(MARAUDER_WAVESHARE_C5_RGB) && defined(HAS_NEOPIXEL_LED)
+  if(!hostConnectionFlash.active)return;
+  hostConnectionFlash.active=false;
+  strip.setPixelColor(0,0);strip.setBrightness(hostConnectionBrightness);strip.show();
+#elif defined(HAS_STATUS_LED)
+  if(!hostConnectionFlash.active)return;
+  hostConnectionFlash.active=false;
+  digitalWrite(LED_BUILTIN,HIGH);
+#endif
 }
 
 uint8_t LedInterface::getMode() {
@@ -86,6 +133,10 @@ void LedInterface::refresh() {
 #endif
 
 void LedInterface::setColor(int r, int g, int b) {
+  cancelHostConnectionFeedback();
+  #ifdef HAS_STATUS_LED
+    digitalWrite(LED_BUILTIN, (r || g || b) ? LOW : HIGH);
+  #endif
   #ifdef HAS_NEOPIXEL_LED
     #ifdef MARAUDER_POOM
       for (uint8_t pixel = 0; pixel < Pixels; ++pixel) {

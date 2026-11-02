@@ -9,7 +9,7 @@
 #ifdef HAS_C5_SD
   #include "FS.h"
 #endif
-#include "SD.h"
+#include "StorageBackend.h"
 #include "SPIFFS.h"
 #ifdef HAS_C5_SD
   #include "SPI.h"
@@ -58,7 +58,7 @@ class SDInterface {
       SDInterface(SPIClass* spi, int cs);
     #endif
 
-    uint8_t cardType;
+    uint8_t cardType = CARD_NONE;
     //uint64_t cardSizeBT;
     //uint64_t cardSizeKB;
     uint64_t cardSizeMB;

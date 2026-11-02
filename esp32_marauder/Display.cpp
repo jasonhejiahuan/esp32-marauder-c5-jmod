@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include "Display.h"
 #include "BootSplashBitmap.h"
 #include "DisplayLine.h"
@@ -641,7 +642,7 @@ void Display::clearScreen()
   #ifdef MARAUDER_PANCAKE
     TOP_FIXED_AREA_2 = 48;
   #endif
-  //Serial.println(F("clearScreen()"));
+  //host_connection::console().println(F("clearScreen()"));
   #ifndef MARAUDER_V7
     tft.fillScreen(TFT_BLACK);
     tft.setCursor(0, 0);

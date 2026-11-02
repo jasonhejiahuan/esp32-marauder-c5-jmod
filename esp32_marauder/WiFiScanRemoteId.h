@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 #include <cstring>
 
 namespace {
@@ -8,7 +9,7 @@ void copyIfPresent(char* destination, size_t destinationSize,
   destination[destinationSize - 1] = '\0';
 }
 
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
 String remoteIdXmlEscape(String value) {
   value.replace("&", "&amp;");
   value.replace("<", "&lt;");
@@ -232,7 +233,7 @@ void WiFiScan::RunRemoteIdScan(uint8_t scan_mode, uint16_t color) {
     clearRemoteIds();
   }
 
-  #ifdef HAS_SD
+  #ifdef HAS_STORAGE
     startLog("remoteid");
     buffer_obj.append("millis,uas_id,operator_id,transport,channel,rssi,packets,packet_rate_hz,state,lost_count,reacquired_count,last_lost_ms,last_reacquired_ms,lat,lon,alt_geo,alt_geo_valid,height,height_valid,speed,speed_valid,heading,heading_valid,operator_lat,operator_lon,auth_type,auth_page,auth_last_page,auth_length,auth_timestamp\n");
     startRemoteIdGpx();
@@ -265,7 +266,7 @@ void WiFiScan::RunRemoteIdScan(uint8_t scan_mode, uint16_t color) {
   setWiFiMode(WIFI_MODE_NULL, remoteIdWifiCallback);
   changeChannel(6);
   wifi_initialized = true;
-  Serial.println("RID scheduler: NAN dwell CH6/CH149 when supported; beacon sweep constrained by configured radio plan");
+  host_connection::console().println("RID scheduler: NAN dwell CH6/CH149 when supported; beacon sweep constrained by configured radio plan");
 
   setupRemoteIdBle();
 
@@ -392,13 +393,13 @@ void WiFiScan::logRemoteIdRecord(const RemoteIdRecord& record) {
                 String(record.hasAuthentication ? record.authenticationLastPage : 0) + "," +
                 String(record.hasAuthentication ? record.authenticationLength : 0) + "," +
                 String(record.hasAuthentication ? record.authenticationTimestamp : 0);
-  Serial.println("RID," + line);
-  #ifdef HAS_SD
+  host_connection::console().println("RID," + line);
+  #ifdef HAS_STORAGE
     buffer_obj.append(line + "\n");
   #endif
 }
 
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
 void WiFiScan::startRemoteIdGpx() {
   remote_id_gpx_active = false;
   remote_id_gpx_file_name = "";
@@ -420,7 +421,7 @@ void WiFiScan::startRemoteIdGpx() {
   file.print("xmlns=\"http://www.topografix.com/GPX/1/1\">\n");
   file.close();
   remote_id_gpx_active = true;
-  Serial.println("Remote ID GPX: " + remote_id_gpx_file_name);
+  host_connection::console().println("Remote ID GPX: " + remote_id_gpx_file_name);
 }
 
 void WiFiScan::logRemoteIdGpxPositions(uint32_t nowMs) {

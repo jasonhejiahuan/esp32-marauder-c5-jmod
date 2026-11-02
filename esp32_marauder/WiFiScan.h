@@ -57,7 +57,7 @@
 #ifdef HAS_SCREEN
   #include "Display.h"
 #endif
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   #include "SDInterface.h"
 #endif
 #include "Buffer.h"
@@ -77,7 +77,7 @@
   #include "xiaoLED.h"
 #elif defined(MARAUDER_M5STICKC)
   #include "stickcLED.h"
-#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED)
+#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED) || defined(HAS_STATUS_LED)
   #include "LedInterface.h"
 #endif
 
@@ -142,6 +142,8 @@
 #define BT_SCAN_ANALYZER 47
 #define WIFI_SCAN_PACKET_RATE 48
 #define WIFI_SCAN_AP_STA 49
+#define WIFI_SCAN_AP_STA_BEACON 89
+#define WIFI_SCAN_CSI_MOTION 90
 #define WIFI_SCAN_PINESCAN 50
 #define WIFI_SCAN_MULTISSID 51
 #define WIFI_CONNECTED 52
@@ -244,7 +246,7 @@ extern EvilPortal evil_portal_obj;
 #ifdef HAS_SCREEN
   extern Display display_obj;
 #endif
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   extern SDInterface sd_obj;
 #endif
 #ifdef HAS_GPS
@@ -261,7 +263,7 @@ extern Settings settings_obj;
   extern xiaoLED xiao_led;
 #elif defined(MARAUDER_M5STICKC)
   extern stickcLED stickc_led;
-#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED)
+#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED) || defined(HAS_STATUS_LED)
   extern LedInterface led_obj;
 #endif
 
@@ -409,7 +411,7 @@ class WiFiScan
     uint32_t remote_id_last_render_ms = 0;
     uint8_t remote_id_schedule_step = 0;
     uint8_t remote_id_beacon_channel_index = 0;
-    #ifdef HAS_SD
+    #ifdef HAS_STORAGE
       struct RemoteIdGpxTrack {
         char uasId[21] = {};
         uint8_t mac[6] = {};
@@ -896,6 +898,7 @@ class WiFiScan
     };
 
     FoxHuntTarget fox_hunt_target;
+    bool monitor_selected_aps=false;
 
     volatile bool bt_cb_busy = false;
     volatile bool bt_pending_clear = false;

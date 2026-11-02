@@ -18,7 +18,7 @@ class PsramInitializationTests(unittest.TestCase):
         source = SKETCH.read_text(encoding="utf-8")
         expected = """#ifdef HAS_PSRAM
     if (!psramInit()) {
-      Serial.println(F("PSRAM not available"));
+      host_connection::console().println(F("PSRAM not available"));
     }
   #endif"""
         self.assertIn(expected, source)

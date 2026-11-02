@@ -49,7 +49,8 @@
   // five saved WiFi profiles without permanently caching their passwords.
   #define JSON_SETTING_SIZE 6144
 
-#define MARAUDER_VERSION "v1.18.0"
+#include "FirmwareVersion.h"
+#define MARAUDER_VERSION MARAUDER_FIRMWARE_DISPLAY
 
   #define GRAPH_REFRESH   100
 
@@ -108,6 +109,8 @@
     #define HARDWARE_NAME "Flipper Zero Dev Board Pro"
   #elif defined(XIAO_ESP32_S3)
     #define HARDWARE_NAME "XIAO ESP32 S3"
+  #elif defined(MARAUDER_XIAO_C5)
+    #define HARDWARE_NAME "Seeed Studio XIAO ESP32-C5"
   #elif defined(MARAUDER_C5)
     #define HARDWARE_NAME "ESP32-C5 DevKit"
   #elif defined(MARAUDER_T_DONGLE_C5)
@@ -511,10 +514,24 @@
     //#define HAS_BATTERY
     #define HAS_BT
     //#define HAS_BUTTONS
-    #define HAS_NEOPIXEL_LED
+    #if defined(MARAUDER_XIAO_C5)
+      #define HAS_STATUS_LED
+      #define HAS_PSRAM
+      // External GPS is opt-in: never claim USB, UART, I2C or SPI pins at boot.
+      #if defined(MARAUDER_XIAO_GPS_RX) && defined(MARAUDER_XIAO_GPS_TX)
+        #define HAS_GPS
+      #elif defined(MARAUDER_XIAO_GPS_RX) || defined(MARAUDER_XIAO_GPS_TX)
+        #error "Specify both XIAO GPS RX and TX GPIOs"
+      #endif
+    #else
+      #define HAS_NEOPIXEL_LED
+      // Generic C5 GPS uses GPIO13/14, shared with native USB D-/D+.
+      #if !ARDUINO_USB_CDC_ON_BOOT
+        #define HAS_GPS
+      #endif
+    #endif
     //#define HAS_PWR_MGMT
     //#define HAS_SCREEN
-    #define HAS_GPS
     #define HAS_C5_SD
     #define HAS_SD
     #define USE_SD
@@ -2937,6 +2954,11 @@
       #define GPS_SERIAL_INDEX 1
       #define GPS_TX 12 // External GPS TX -> T-Dongle UART0 RX
       #define GPS_RX 11 // External GPS RX -> T-Dongle UART0 TX
+    #elif defined(MARAUDER_XIAO_C5)
+      #define GPS_SERIAL_INDEX 1
+      // Legacy GPS_TX means the GPS module TX (the MCU receives here).
+      #define GPS_TX MARAUDER_XIAO_GPS_RX
+      #define GPS_RX MARAUDER_XIAO_GPS_TX
     #elif defined(MARAUDER_C5)
       #define GPS_SERIAL_INDEX 1
       #define GPS_TX 14
@@ -3125,6 +3147,19 @@
 
   //// PCAP BUFFER STUFF
 
+  // Storage capability is independent from an SPI SD-card controller.
+  #ifdef MARAUDER_INTERNAL_STORAGE
+    #if !defined(MARAUDER_C5) || (!defined(MARAUDER_WAVESHARE_C5_RGB) && !defined(MARAUDER_XIAO_C5))
+      #error "Internal storage requires a supported C5 board profile"
+    #endif
+    #undef HAS_SD
+    #undef HAS_C5_SD
+    #undef USE_SD
+  #endif
+  #if defined(HAS_SD) || defined(MARAUDER_INTERNAL_STORAGE)
+    #define HAS_STORAGE
+  #endif
+
   //// STUPID CYD STUFF
   #if defined(HAS_CYD_TOUCH) || defined(HAS_C5_SD) || defined(HAS_SEPARATE_SD)
     #ifdef MARAUDER_CYD_MICRO
@@ -3288,4 +3323,8 @@
 
   #endif
 
+#endif
+
+#if defined(MARAUDER_C5)
+#define HAS_CSI_MOTION
 #endif

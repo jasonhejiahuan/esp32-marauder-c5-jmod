@@ -1,0 +1,12 @@
+Marauder UI (Marauder Desk)
+Copyright (c) 2026 JASON Studio
+
+static/style.css incorporates style work and design references from
+Passkey-Auth by JASON Studio:
+https://github.com/jasonhejiahuan/Passkey-Auth
+https://github.com/jasonhejiahuan/Passkey-Auth/blob/main/jstu_passkey/static/oauth.css
+https://github.com/jasonhejiahuan/Passkey-Auth/blob/main/jstu_passkey/static/management.css
+
+The stylesheet has been modified for Marauder UI and is distributed under
+Apache License 2.0. A copy is included in licenses/Apache-2.0.txt.
+Other original UI code is distributed under the MIT license in LICENSE.

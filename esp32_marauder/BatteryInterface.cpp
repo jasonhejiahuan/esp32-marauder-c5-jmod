@@ -1,3 +1,4 @@
+#include "HostConnection.h"
 
 // #ifdef HAS_BATTERY
 
@@ -10,14 +11,14 @@ BatteryInterface::BatteryInterface() {
 void BatteryInterface::main(uint32_t currentTime) {
   if (currentTime != 0) {
     if (currentTime - initTime >= 3000) {
-      //Serial.println("Checking Battery Level");
+      //host_connection::console().println("Checking Battery Level");
       this->initTime = millis();
       int8_t new_level = this->getBatteryLevel();
       //this->battery_level = this->getBatteryLevel();
       if (this->battery_level != new_level) {
-        Serial.println(text00 + (String)new_level);
+        host_connection::console().println(text00 + (String)new_level);
         this->battery_level = new_level;
-        Serial.println("Battery Level: " + (String)this->battery_level);
+        host_connection::console().println("Battery Level: " + (String)this->battery_level);
       }
     }
   }
@@ -34,7 +35,7 @@ void BatteryInterface::RunSetup() {
         pinMode(BATTERY_ADC_PIN, INPUT);
         this->has_adc_battery = true;
         // this->i2c_supported = true;
-        Serial.println(F("Battery: ADC mode"));
+        host_connection::console().println(F("Battery: ADC mode"));
 
     #elif defined(HAS_AXP2101) && defined(I2C_SDA)
         bool result = this->power.begin(Wire, AXP2101_SLAVE_ADDRESS, I2C_SDA, I2C_SCL);
@@ -42,7 +43,7 @@ void BatteryInterface::RunSetup() {
         if (!result)
           return;
 
-        Serial.println(F("Detected AXP2101"));
+        host_connection::console().println(F("Detected AXP2101"));
 
         this->i2c_supported = true;
         this->has_axp2101 = true;
@@ -56,7 +57,7 @@ void BatteryInterface::RunSetup() {
           error = Wire.endTransmission();
 
           if (error == 0) {
-            Serial.println(F("Detected IP5306"));
+            host_connection::console().println(F("Detected IP5306"));
             this->has_ip5306 = true;
             this->i2c_supported = true;
           }
@@ -73,7 +74,7 @@ void BatteryInterface::RunSetup() {
 
           if (error == 0) {
             if (maxlipo.begin()) {
-              Serial.println(F("Detected MAX17048"));
+              host_connection::console().println(F("Detected MAX17048"));
               this->has_max17048 = true;
               this->i2c_supported = true;
             }

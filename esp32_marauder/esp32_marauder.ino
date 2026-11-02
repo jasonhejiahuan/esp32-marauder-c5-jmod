@@ -1,3 +1,9 @@
+#include "HostConnection.h"
+#ifdef HOST_CONNECTION_ENABLED
+SET_LOOP_TASK_STACK_SIZE(32768);
+#endif
+#include "StorageCommands.h"
+#include "UsbOta.h"
 /* FLASH SETTINGS
 Board: LOLIN D32
  Frequency: 80MHz
@@ -6,6 +12,7 @@ https://www.online-utility.org/image/convert/to/XBM
 */
 
 #include "configs.h"
+#include "DeviceObservability.h"
 
 #ifndef HAS_SCREEN
   #define MenuFunctions_h
@@ -20,7 +27,7 @@ https://www.online-utility.org/image/convert/to/XBM
 
 #include "Assets.h"
 #include "WiFiScan.h"
-#ifdef HAS_SD
+#ifdef HAS_STORAGE
   #include "SDInterface.h"
 #endif
 #include "Buffer.h"
@@ -31,7 +38,7 @@ https://www.online-utility.org/image/convert/to/XBM
   #include "xiaoLED.h"
 #elif defined(MARAUDER_M5STICKC) || defined(MARAUDER_M5STICKCP2)
   #include "stickcLED.h"
-#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED)
+#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED) || defined(HAS_STATUS_LED)
   #include "LedInterface.h"
 #endif
 
@@ -101,7 +108,7 @@ ReconMission recon_obj;
   MenuFunctions menu_function_obj;
 #endif
 
-#if defined(HAS_SD) && !defined(HAS_C5_SD)
+#if defined(HAS_STORAGE) && !defined(HAS_C5_SD)
   SDInterface sd_obj;
 #endif
 
@@ -111,7 +118,7 @@ ReconMission recon_obj;
   xiaoLED xiao_led;
 #elif defined(MARAUDER_M5STICKC) || defined(MARAUDER_M5STICKCP2)
   stickcLED stickc_led;
-#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED)
+#elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED) || defined(HAS_STATUS_LED)
   LedInterface led_obj;
 #endif
 
@@ -120,6 +127,9 @@ const String PROGMEM version_number = MARAUDER_VERSION;
 #ifdef HAS_NEOPIXEL_LED
   #ifdef MARAUDER_POOM
     PoomWs2812 strip(Pixels, PIN);
+  #elif defined(MARAUDER_C5) && defined(MARAUDER_WAVESHARE_C5_RGB)
+    // This Waveshare board was calibrated R/G/B on the physical LED.
+    Adafruit_NeoPixel strip = Adafruit_NeoPixel(Pixels, PIN, NEO_RGB + NEO_KHZ800);
   #else
     Adafruit_NeoPixel strip = Adafruit_NeoPixel(Pixels, PIN, NEO_GRB + NEO_KHZ800);
   #endif
@@ -168,13 +178,13 @@ uint32_t currentTime  = 0;
       bl_level_idx = (bl_level_idx + 1) % BL_NUM_LEVELS;
       BL_SET(BL_LEVELS[bl_level_idx]);
       bl_prefs.putUChar("level", bl_level_idx);
-      Serial.print(F("[Brightness] Level "));
-      Serial.print(bl_level_idx + 1);
-      Serial.print(F("/"));
-      Serial.print(BL_NUM_LEVELS);
-      Serial.print(F(" ("));
-      Serial.print(BL_LEVELS[bl_level_idx] * 100 / 255);
-      Serial.println(F("%)"));
+      host_connection::console().print(F("[Brightness] Level "));
+      host_connection::console().print(bl_level_idx + 1);
+      host_connection::console().print(F("/"));
+      host_connection::console().print(BL_NUM_LEVELS);
+      host_connection::console().print(F(" ("));
+      host_connection::console().print(BL_LEVELS[bl_level_idx] * 100 / 255);
+      host_connection::console().println(F("%)"));
     #endif
   }
 
@@ -241,6 +251,10 @@ void setup()
     esp_log_level_set("*", ESP_LOG_NONE);
   #endif
   
+  #if defined(MARAUDER_C5) && ARDUINO_USB_CDC_ON_BOOT
+    Serial.setTxBufferSize(2048);
+    Serial.setRxBufferSize(4096);
+  #endif
   Serial.begin(115200);
 
   #ifdef HAS_ACT_LED
@@ -249,8 +263,18 @@ void setup()
     digitalWrite(ACT_LED_PIN, LOW);
   #endif
 
-  while(!Serial)
-    delay(10);
+  #if defined(MARAUDER_C5) && ARDUINO_USB_CDC_ON_BOOT
+    // Allow boot without an attached terminal; USB CLI can connect later.
+    const uint32_t serial_wait_start = millis();
+    while (!Serial && millis() - serial_wait_start < 1500)
+      delay(10);
+    host_connection::console().printf("USB CLI build: %s / %s; PSRAM total=%u free=%u bytes\n",
+                  MARAUDER_VERSION, HARDWARE_NAME,
+                  (unsigned)ESP.getPsramSize(), (unsigned)ESP.getFreePsram());
+  #else
+    while(!Serial)
+      delay(10);
+  #endif
 
   #ifdef HAS_C5_SD
     sharedSPI.begin(SD_SCK, SD_MISO, SD_MOSI);
@@ -292,19 +316,19 @@ void setup()
   //while(!Serial)
   //  delay(10);
 
-  Serial.println("ESP-IDF version is: " + String(esp_get_idf_version()));
+  host_connection::console().println("ESP-IDF version is: " + String(esp_get_idf_version()));
 
   #ifdef HAS_PSRAM
     if (!psramInit()) {
-      Serial.println(F("PSRAM not available"));
+      host_connection::console().println(F("PSRAM not available"));
     }
   #endif
 
   #ifdef HAS_SIMPLEX_DISPLAY
-    #if defined(HAS_SD)
+    #if defined(HAS_STORAGE)
       // Do some SD stuff
       if(!sd_obj.initSD())
-        Serial.println(F("SD Card NOT Supported"));
+        host_connection::console().println(F("Storage unavailable"));
 
     #endif
   #endif
@@ -343,17 +367,17 @@ void setup()
   const char* type = settings_obj.getSettingType("wu");
 
   if (type == nullptr || type[0] == '\0') {
-    Serial.println(F("Current settings format not supported. Installing new default settings..."));
+    host_connection::console().println(F("Current settings format not supported. Installing new default settings..."));
     settings_obj.createDefaultSettings(SPIFFS);
   }
 
   buffer_obj = Buffer();
 
   #ifndef HAS_SIMPLEX_DISPLAY
-    #if defined(HAS_SD)
+    #if defined(HAS_STORAGE)
       // Do some SD stuff
       if(!sd_obj.initSD())
-        Serial.println(F("SD Card NOT Supported"));
+        host_connection::console().println(F("Storage unavailable"));
 
     #endif
   #endif
@@ -381,7 +405,7 @@ void setup()
     xiao_led.RunSetup();
   #elif defined(MARAUDER_M5STICKC)
     stickc_led.RunSetup();
-  #elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED)
+  #elif defined(HAS_NEOPIXEL_LED) || defined(HAS_T_DONGLE_LED) || defined(HAS_STATUS_LED)
     led_obj.RunSetup();
   #endif
 
@@ -403,16 +427,21 @@ void setup()
   /*char ssidBuf[64] = {0};  // or prefill with existing SSID
   if (keyboardInput(ssidBuf, sizeof(ssidBuf), "Enter SSID")) {
     // user pressed OK
-    Serial.println(ssidBuf);
+    host_connection::console().println(ssidBuf);
   } else {
-    Serial.println(F("User exited keyboard"));
+    host_connection::console().println(F("User exited keyboard"));
   }
 
   menu_function_obj.changeMenu(menu_function_obj.current_menu);*/
 
   wifi_scan_obj.StartScan(WIFI_SCAN_OFF);
   
+  #ifdef MARAUDER_C5
+    device_observation::setup();
+    usb_ota::setup();
+  #endif
   cli_obj.RunSetup();
+  host_connection::begin();
 }
 
 
@@ -445,6 +474,11 @@ void loop()
 
   // Update all of our objects
   cli_obj.main(currentTime);
+  #ifdef MARAUDER_C5
+  device_observation::tick();
+  storage_commands::tick();
+  usb_ota::tick();
+  #endif
   wifi_scan_obj.main(currentTime);
   recon_obj.main(currentTime);
 
@@ -478,7 +512,7 @@ void loop()
     // The LED shares GPIO2/GPIO7 with the display/SD bus. Always make it the
     // final writer so later SPI activity cannot leave it latched white.
     led_obj.refresh();
-  #elif defined(HAS_NEOPIXEL_LED)
+  #elif defined(HAS_NEOPIXEL_LED) || defined(HAS_STATUS_LED)
     led_obj.main(currentTime);
   #endif
 
@@ -489,6 +523,10 @@ void loop()
   #ifdef HAS_SCREEN
     delay(1);
   #else
-    delay(50);
+    #ifdef HOST_CONNECTION_ENABLED
+      host_connection::idle();
+      #else
+      delay(usb_ota::active() ? 1 : 50);
+      #endif
   #endif
 }

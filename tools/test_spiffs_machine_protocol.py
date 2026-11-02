@@ -26,7 +26,7 @@ class SpiffsMachineProtocolTests(unittest.TestCase):
         success = restore.index(
             'machineResult(transaction_id, command, "success", "OK", files, bytes, operation == 2)'
         )
-        restart = restore.index("ESP.restart();")
+        restart = restore.index("commandRebootAt =")
         self.assertLess(success, restart)
         self.assertIn("if (success && operation == 2)", restore[success:restart])
 
@@ -35,8 +35,8 @@ class SpiffsMachineProtocolTests(unittest.TestCase):
         method = re.search(
             r"bool SDInterface::migrateSPIFFS\(.*?\n\}", source, re.S
         ).group(0)
-        self.assertIn("File backup = SD.open(backup_path)", method)
-        self.assertIn('copyTree(SD, backup_path, nullptr', method)
+        self.assertIn("File backup = storageFS().open(backup_path)", method)
+        self.assertIn('copyTree(storageFS(), backup_path, nullptr', method)
 
     def test_human_spiffs_commands_report_lifecycle_and_results(self):
         source = (ROOT / "esp32_marauder" / "CommandLine.cpp").read_text()
@@ -44,10 +44,10 @@ class SpiffsMachineProtocolTests(unittest.TestCase):
         commands = source[start:source.index("// GCOVR_EXCL_STOP", start)]
 
         self.assertIn('else if (!machine && operation != 1)', commands)
-        self.assertIn('Serial.printf("SPIFFS %s started\\n"', commands)
+        self.assertIn('host_connection::console().printf("SPIFFS %s started\\n"', commands)
         self.assertIn('operation == 1 ? "backup status"', commands)
         self.assertIn('operation == 2 ? "; rebooting" : ""', commands)
-        self.assertIn('Serial.printf("SPIFFS %s failed: %s\\n"', commands)
+        self.assertIn('host_connection::console().printf("SPIFFS %s failed: %s\\n"', commands)
         self.assertIn('storageErrorCode(error, fallback)', commands)
 
 
