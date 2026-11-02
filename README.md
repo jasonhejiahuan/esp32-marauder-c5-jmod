@@ -1,28 +1,18 @@
-<!---[![License: MIT](https://img.shields.io/github/license/mashape/apistatus.svg)](https://github.com/justcallmekoko/ESP32Marauder/blob/master/LICENSE)--->
-<!---[![Gitter](https://badges.gitter.im/justcallmekoko/ESP32Marauder.png)](https://gitter.im/justcallmekoko/ESP32Marauder)--->
-<!---[![Build Status](https://travis-ci.com/justcallmekoko/ESP32Marauder.svg?branch=master)](https://travis-ci.com/justcallmekoko/ESP32Marauder)--->
-<!---Shields/Badges https://shields.io/--->
+# esp32-marauder-c5-jmod
 
-# ESP32 Marauder
-<p align="center"><img alt="Marauder logo" src="https://github.com/justcallmekoko/ESP32Marauder/blob/master/pictures/marauder_skull_patch_04_full_final.png?raw=true" width="300"></p>
-<p align="center">
-  <b>A suite of WiFi/Bluetooth offensive and defensive tools for the ESP32</b>
-  <br><br>
-  <a href="https://github.com/justcallmekoko/ESP32Marauder/blob/master/LICENSE"><img alt="License" src="https://img.shields.io/github/license/mashape/apistatus.svg"></a>
-  <a href="https://gitter.im/justcallmekoko/ESP32Marauder"><img alt="Gitter" src="https://badges.gitter.im/justcallmekoko/ESP32Marauder.png"/></a>
-  <br>
-  <a href="https://twitter.com/intent/follow?screen_name=jcmkyoutube"><img src="https://img.shields.io/twitter/follow/jcmkyoutube?style=social&logo=twitter" alt="Twitter"></a>
-  <a href="https://www.instagram.com/just.call.me.koko"><img src="https://img.shields.io/badge/Follow%20Me-Instagram-orange" alt="Instagram"/></a>
-  <br><br>
-</p>
-    
-[![Build and Push](https://github.com/justcallmekoko/ESP32Marauder/actions/workflows/build_push.yml/badge.svg)](https://github.com/justcallmekoko/ESP32Marauder/actions/workflows/build_push.yml)
-[![Firmware coverage](https://codecov.io/gh/justcallmekoko/ESP32Marauder/branch/develop/graph/badge.svg?flag=firmware-unit-tests)](https://app.codecov.io/gh/justcallmekoko/ESP32Marauder/tree/develop)
+JASON Studio's ESP32 Marauder fork for **Waveshare ESP32-C5-WIFI6-KIT-N32R8-U** and **Seeed Studio XIAO ESP32-C5**, with **Marauder UI** (Marauder Desk), a local Python/browser dashboard.
 
-## Getting Started
-Download the [latest release](https://github.com/justcallmekoko/ESP32Marauder/releases/latest) of the firmware.  
+| Build target | Flash / PSRAM | Connection | Status LED | Application storage |
+|---|---|---|---|---|
+| Waveshare ESP32-C5-WIFI6-KIT-N32R8-U | 32 MiB / 8 MiB | Native USB; optional UART control/data link | RGB | 6 MiB LittleFS, two 4 MiB app slots |
+| Seeed Studio XIAO ESP32-C5 | 8 MiB / 8 MiB | One native USB connection; no UART baud negotiation | Yellow | 1664 KiB LittleFS, two 3 MiB app slots |
 
-Check out the project [wiki](https://github.com/justcallmekoko/ESP32Marauder/wiki) for a full overview of the ESP32 Marauder
+The project focuses on these two C5 profiles, their USB protocol, internal storage and application-only OTA, plus Marauder UI for network/BLE observation, device information, files and CLI access. Native XIAO header pin definitions are preserved.
 
-# For Sale Now
-You can buy the ESP32 Marauder using [this link](https://www.justcallmekokollc.com)
+## Implementation status
+
+This default branch establishes the v1.18.0 upstream baseline and project scope. The JMOD firmware and Marauder UI implementation is being prepared on [jmod/c5-firmware-and-ui](https://github.com/jasonhejiahuan/esp32-marauder-c5-jmod/tree/jmod/c5-firmware-and-ui) for pull-request review. This branch is not a JMOD firmware release.
+
+## Upstream and licensing
+
+Based on [justcallmekoko/ESP32Marauder](https://github.com/justcallmekoko/ESP32Marauder), starting from tag **v1.18.0** (`b2b9f92382eb60b39b8741be3b567e416cdbe672`). This is an independent modification by JASON Studio. The upstream MIT copyright and permission notice remain in [LICENSE](LICENSE); dependencies retain their own licenses.
